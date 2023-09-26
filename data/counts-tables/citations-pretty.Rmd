@@ -1,0 +1,17 @@
+---
+title: "Counts Tables - Citations"
+output:
+  html_document: default
+bibliography: citations.bib
+nocite: '@*'
+---
+
+Sequences were processed through a qiime2 pipeline.
+
+View the file **taxonomy-barplot.qzv** through [https://view.qiime2.org/](https://view.qiime2.org/), and see the Provenance tab for a record of all inputs and processing steps that created this file.
+
+The **filtered-counts_level-[1-7].csv** files are derived from the taxonomy-barplot.qzv artifact.  (File names were modified.)
+
+The **citations.bib** file is derived from the taxonomy-barplot.qzv artifact.  The file name was modified and the "|" character replaced with "-" so as to play nice with pandoc so the citations could be displayed below.
+
+## Citations
