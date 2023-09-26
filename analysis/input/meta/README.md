@@ -17,10 +17,6 @@ The metadata in this repository includes these features:
  * STAI_TOTAL
  * STAI_Y1
  * STAI_Y2
-
-
-May add soon...
-
  * DUR_ILLNESS_YRS
 
 Additional features which may be available by request:
