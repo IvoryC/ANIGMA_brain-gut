@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+biolockj --blj_proj ../results ../analysis/anigma_stress.config
