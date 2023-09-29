@@ -18,7 +18,8 @@ The meta data is given on a per-sample basis.  For some metrics, particularly th
 ### Libraries
 
 ```{r }
-tellme <- function(name){message("Package ", name, " version: ", packageVersion("tidyr"))}
+tellme <- function(name){message("Package ", name, " version: ", packageVersion(name))}
+
 library(tidyr); tellme("tidyr")
 suppressPackageStartupMessages(library(dplyr)); tellme("dplyr")
 library(ggplot2); tellme("ggplot2")
@@ -134,7 +135,7 @@ for (feature in diffables){
       } ) 
   # %>%
   #   select(PARTICIPANT.ID, all_of(feature))
-  diffs = merge(diffs, t1t2diff, by="PARTICIPANT.ID", all=T)
+  diffs = merge(diffs, t1t2diff, by="PARTICIPANT.ID", all.x=T)
 }
 
 dim(diffs)
@@ -243,7 +244,7 @@ melted_cormat$var2 = factor(melted_cormat$var2, levels=row.names(triangle1))
 make_heatmap_1(melted_cormat)
 ```
 
-manually set the order.
+Manually set the order.
 ```{r include=FALSE, echo=FALSE}
 # get string from this:
 # paste(row.names(triangle1), collapse = "', '")
@@ -258,6 +259,7 @@ manual.order = c('BMI.T1', 'Weight_kg.T1', 'BMI.T2', 'Weight_kg.T2',
                  'PSS.diff', 'STAI_Y1.diff', 'STAI_Y2.diff', 'STAI_TOTAL.diff', 
                  'PSS.T2', 
                  'STAI_Y2.T1', 'PSS.T1', 'STAI_Y1.T1', 'STAI_TOTAL.T1', 'STAI_Y1.T2', 'STAI_Y2.T2', 'STAI_TOTAL.T2')
+manual.order
 ```
 
 Replot with manual order.
@@ -277,9 +279,11 @@ melted_cormat$var2 = factor(melted_cormat$var2, levels=row.names(triangle1))
 make_heatmap_1(melted_cormat)
 ```
 
-Now lets get some p-values
+Now lets get some p-values. 
 ```{r}
 feats = colnames(df)
+
+pvalCut = 0.01
 
 cors = matrix(data=NA, nrow=length(feats), ncol=length(feats), dimnames = list(feats, feats))
 pvals = cors
@@ -291,13 +295,15 @@ for (i in feats){
             res = cor.test(df[,i], df[,j], method="pearson")
             cors[i,j] = res$estimate
             pvals[i,j] = res$p.value
-            if (res$p.value < 0.01){
+            if (res$p.value < pvalCut){
                 cors.sig[i,j] = res$estimate
             }
         }
     }
 }
 ```
+
+Make a new plot that only includes values were the correlation was significant (p < ``r pvalCut``).
 
 ```{r}
 reshapeMatrixToPlot <- function(correlationMatrix){
@@ -318,14 +324,14 @@ reshapeMatrixToPlot <- function(correlationMatrix){
 }
 
 # match most recent plot - show melt and plot method matches
-make_heatmap_1(reshapeMatrixToPlot(cor.co))
+make_heatmap_1(reshapeMatrixToPlot(cor.co)) + ggtitle("Upper triangle")
 # should also match most recent plot - show input matrix matches
-make_heatmap_1(reshapeMatrixToPlot(cors))
+make_heatmap_1(reshapeMatrixToPlot(cors)) + ggtitle("Upper triangle, excluding identity line")
 # only sig
-make_heatmap_1(reshapeMatrixToPlot(cors.sig))
+make_heatmap_1(reshapeMatrixToPlot(cors.sig)) + ggtitle(paste0("Correlations with p-value less than ", pvalCut))
 ```
 
-Now lets note what is mathwise related.
+Now lets note what is mathmatically related.
 ```{r}
 # T1 severity is related to BMI at T1 and therefore also related to weight at T1
 severity = data.frame(x=c("T1.severity", "T1.severity"), 
@@ -364,6 +370,8 @@ stack = rbind(related1, related2,
 # relatedness goes both ways
 reverse.stack = data.frame(x=stack$y, y=stack$x)
 stack2 = rbind(stack, reverse.stack)
+
+head(stack2)
 ```
 
 test annotations
@@ -422,20 +430,69 @@ figure = make_heatmap_1(melted_cormat) +
 print(figure)
 ```
 
-Save figure to file.
+
+## Figure Variants
+
+The objects we need moving forward are:
+
+ * markPairings - a data frame with 2 columns indicating pairs of items to mark as mathmatically related.
+ * my.order - a vector giving the order in which items should be plotted.
+ * dataframe - a data frame with samples in rows and columns of features to compare for correalations.
+ * pvalCut - a p-value threshold for the lower triangle
+ 
+Remove everything else.
 ```{r}
-ggsave(filename = file.path(outdir, "correlations.png"),
-       plot = figure)
+rm(list = setdiff(ls(), c("manual.order", "stack2", "diffs", "HC", "outdir")))
 ```
 
+ 
 
 As a function:
 ```{r}
-make_heatmap_2 <- function(dataframe, my.order=manual.order){
-    
-    cor.co = cor(dataframe, use="pairwise.complete.obs", method = "pearson")
+#functions
+# Get upper triangle of the correlation matrix
+get_upper_tri <- function(cormat){
+    cormat[lower.tri(cormat)]<- NA
+    return(cormat)
+}
+
+tidyMelt <- function(cormat, values_name="values"){
+    cormat.new = cormat %>% data.frame() 
+    cormat.new$var1 = row.names(cormat.new)
+    melted_cormat = cormat.new %>% pivot_longer(cols=-var1, names_to = "var2", values_to = values_name)
+    return(melted_cormat)
+}
+
+make_heatmap_1 <- function(cor.co2){
+    ggplot(data = cor.co2, aes(x=var1, y=var2, fill=cor)) + 
+        geom_tile(color = "white")+
+        scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                             midpoint = 0, limit = c(-1,1), space = "Lab", 
+                             name="Pearson\nCorrelation",
+                             na.value = gray(.9)) +
+        theme_minimal()+ # minimal theme
+        xlab("") +
+        ylab("") +
+        theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                         size = 8, hjust = 1)) +
+        coord_fixed()
+}
+
+make_heatmap_2 <- function(dataframe, my.order=manual.order, markPairings=stack2, pvalCut=0.01){
+    if (is.null(my.order)){
+        my.order = names(dataframe)
+    }
     
     feats = colnames(dataframe)
+    
+    if (!is.null(markPairings)){
+        names(markPairings) = c("x", "y")
+        markPairings = markPairings %>% 
+            filter( x %in% feats) %>%
+            filter( y %in% feats)
+    }
+    
+    cor.co = cor(dataframe, use="pairwise.complete.obs", method = "pearson")
     
     cors = matrix(data=NA, nrow=length(feats), 
                   ncol=length(feats), 
@@ -448,86 +505,215 @@ make_heatmap_2 <- function(dataframe, my.order=manual.order){
             if ( i != j ){
                 res = cor.test(dataframe[,i], dataframe[,j], method="pearson")
                 pvals[i,j] = res$p.value
-                if (res$p.value < 0.01){
+                if (res$p.value < pvalCut){
                     cors.sig[i,j] = res$estimate
                 }
             }
         }
     }
     
-    
-    
     # upper - all correlation values
-# Reorder the correlation matrix
-cormat <- cor.co[my.order, my.order]
-# only one triangle
-triangle1 = get_upper_tri(cormat)
-# Melt the correlation matrix
-melted_cormat1 = tidyMelt(triangle1, values_name="cor") %>% filter(!is.na(cor))
-# order levels to match triangle order
-melted_cormat1$var1 = factor(melted_cormat1$var1, levels=my.order)
-melted_cormat1$var2 = factor(melted_cormat1$var2, levels=my.order)
-
-# lower - only sig values
-cormat <- cors.sig[my.order, my.order]
-# only one triangle
-get_lower_tri2<-function(cormat){
-    cormat[upper.tri(cormat)] <- 50
-    for (f in feats){
-        cormat[f, f] <- 50
+    # Reorder the correlation matrix
+    cormat <- cor.co[my.order, my.order]
+    # only one triangle
+    triangle1 = get_upper_tri(cormat)
+    # Melt the correlation matrix
+    melted_cormat1 = tidyMelt(triangle1, values_name="cor") %>% filter(!is.na(cor))
+    # order levels to match triangle order
+    melted_cormat1$var1 = factor(melted_cormat1$var1, levels=my.order)
+    melted_cormat1$var2 = factor(melted_cormat1$var2, levels=my.order)
+    
+    # lower - only sig values
+    cormat <- cors.sig[my.order, my.order]
+    # only one triangle
+    get_lower_tri2<-function(cormat){
+        cormat[upper.tri(cormat)] <- 50
+        for (f in feats){
+            cormat[f, f] <- 50
+        }
+        return(cormat)
     }
-    return(cormat)
-}
-triangle2 = get_lower_tri2(cormat)
-
-# Melt the correlation matrix
-melted_cormat2 = tidyMelt(triangle2, values_name="cor") %>% filter(cor != 50)
-# order levels to match triangle order
-melted_cormat2$var1 = factor(melted_cormat2$var1, levels=my.order)
-melted_cormat2$var2 = factor(melted_cormat2$var2, levels=my.order)
-
-# merge in melted form
-melted_cormat = rbind(melted_cormat1, melted_cormat2)
-# order levels to match triangle order
-melted_cormat$var1 = factor(melted_cormat$var1, levels=my.order)
-melted_cormat$var2 = factor(melted_cormat$var2, levels=my.order)
-
-figure = make_heatmap_1(melted_cormat) + 
-    # mark related features
-    annotate(geom="text", x=stack2$x, y=stack2$y, label="+") +
-    # identity line gets similar marking, slighly bigger
-    annotate(geom="text", x=feats, y=feats, label="+", size=6)
-return(figure)
+    triangle2 = get_lower_tri2(cormat)
+    
+    # Melt the correlation matrix
+    melted_cormat2 = tidyMelt(triangle2, values_name="cor") %>% filter(cor != 50)
+    # order levels to match triangle order
+    melted_cormat2$var1 = factor(melted_cormat2$var1, levels=my.order)
+    melted_cormat2$var2 = factor(melted_cormat2$var2, levels=my.order)
+    
+    # merge in melted form
+    melted_cormat = rbind(melted_cormat1, melted_cormat2)
+    # order levels to match triangle order
+    melted_cormat$var1 = factor(melted_cormat$var1, levels=my.order)
+    melted_cormat$var2 = factor(melted_cormat$var2, levels=my.order)
+    
+    figure = make_heatmap_1(melted_cormat)
+    
+    if (!is.null(markPairings)){
+        figure = figure + 
+            # mark related features
+            annotate(geom="text", x=markPairings[,1], y=markPairings[,2], label="+") +
+            # identity line gets similar marking, slighly bigger
+            annotate(geom="text", x=feats, y=feats, label="+", size=6)
+    }
+    
+    return(figure)
 }
 
 fig1 = make_heatmap_2(diffs %>% select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE))
 fig1
 ```
 
+Save figure to file.
+```{r}
+ggsave(filename = file.path(outdir, "correlations.png"),
+       plot = fig1)
+```
+
+Add LOCATION and SUBTYPE as a row.
+```{r}
+make_heatmap_2(diffs %>% 
+                   mutate(LOC.N = as.numeric(factor(LOCATION))) %>%
+                   mutate(TYPE.N = as.numeric(factor(SUBTYPE))) %>%
+                   select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE),
+               my.order = c( "TYPE.N", "LOC.N", manual.order))
+```
+
+### AN Subtypes
 
 ```{r}
-# fig2.acute = make_heatmap_2(diffs %>% 
-#                           filter(LOCATION == "ACUTE") %>%
-#                           select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE))
-# fig2.acute
-# fig2.ceed = make_heatmap_2(diffs %>% 
-#                           filter(LOCATION == "CEED") %>%
-#                           select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE))
-# fig2.ceed
+s1 = make_heatmap_2(diffs %>%
+                   filter(SUBTYPE == "BP") %>%
+                   select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE)) +
+    ggtitle("BP")
+
+s2 = make_heatmap_2(diffs %>%
+                   filter(SUBTYPE == "ANR") %>%
+                   select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE)) +
+    ggtitle("ANR")
+
+## not enough of these to plot
+# 
+# make_heatmap_2(diffs %>%
+#                    filter(SUBTYPE == "EDNOS") %>%
+#                    select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE)) +
+#     ggtitle("EDNOS")
+# 
+# make_heatmap_2(diffs %>%
+#                    filter(SUBTYPE == "ARFID") %>%
+#                    select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE)) +
+#     ggtitle("ARFID")
+```
+
+```{r}
+fileName.locations = file.path(outdir, "correlations_by-subtype.pdf")
+pdf(fileName.locations)
+
+s1
+s2
+
+dev.off()
+
+s1
+s2
+```
+
+### Location subsets
+
+Using the above function.
+
+```{r}
+p1 = make_heatmap_2(diffs %>%
+                   filter(LOCATION == "ACUTE") %>%
+                   select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE)) +
+    ggtitle("ACUTE")
+
+
+# no ceed values for DUR_ILLNESS_YRS
+p2 = make_heatmap_2(diffs %>%
+                   filter(LOCATION == "CEED") %>%
+                   select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE, -DUR_ILLNESS_YRS),
+               my.order = setdiff(manual.order, "DUR_ILLNESS_YRS") ) +
+    ggtitle("CEED")
+
+
+diffs.FARGO = diffs %>%
+    filter(LOCATION == "FARGO") %>%
+    select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE) %>%
+    select(-contains("STAI_Y2"), -contains("STAI_TOTAL") )
+p3 = make_heatmap_2(diffs.FARGO,
+               my.order=manual.order[manual.order %in% names(diffs.FARGO)],
+               markPairings = stack2 %>% 
+                   filter(x %in% names(diffs.FARGO)) %>%
+                   filter(y %in% names(diffs.FARGO))) +
+    ggtitle("FARGO")
 ```
 
 
+```{r}
+fileName.locations = file.path(outdir, "correlations_by-location.pdf")
+pdf(fileName.locations)
 
-## Location subsets
+p1
+p2
+p3
+
+dev.off()
+
+p1
+p2
+p3
+```
+
+
+### HC group
 
 ```{r}
+hc1 = make_heatmap_2(HC %>%
+                   select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE),
+               my.order = NULL, markPairings = stack2) +
+    ggtitle("Non-eating Disorder")
+hc1
+```
+
+
+```{r}
+hc2 = make_heatmap_2(HC %>%
+                   filter(LOCATION == "ACUTE") %>%
+                   select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE),
+               my.order = NULL) +
+    ggtitle("Non-eating Disorder - ACUTE")
+
+
+hc3 = make_heatmap_2(HC %>%
+                   filter(LOCATION == "CEED") %>%
+                   select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE),
+               my.order = NULL) +
+    ggtitle("Non-eating Disorder - CEED")
+
+hc4 = make_heatmap_2(HC %>%
+                   filter(LOCATION == "FARGO") %>%
+                   select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE) %>%
+                   select(-contains("STAI_Y2"), -contains("STAI_TOTAL")),
+               my.order = NULL) +
+    ggtitle("Non-eating Disorder - FARGO")
 
 ```
 
-## HC group
-
 ```{r}
+fileName.locations = file.path(outdir, "correlations_non-ed_HC.pdf")
+pdf(fileName.locations)
 
+hc1
+hc2
+hc3
+hc4
+
+dev.off()
+
+hc2
+hc3
+hc4
 ```
 
 
