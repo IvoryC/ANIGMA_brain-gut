@@ -1,0 +1,219 @@
+---
+title: "Reshape Metadata"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Settup
+
+### Libraries
+
+```{r}
+tellme <- function(name){message("Package ", name, " version: ", packageVersion(name))}
+
+library(tidyr); tellme("tidyr")
+suppressPackageStartupMessages(library(dplyr)); tellme("dplyr")
+library(ggplot2); tellme("ggplot2")
+library(ggrepel); tellme("ggrepel")
+```
+
+Direct output.
+```{r echo=FALSE}
+outdir = "../output"
+suppressWarnings( dir.create(outdir) )
+```
+
+Output will be saved to: ``r outdir``
+
+### read data
+
+Read data.
+```{r}
+meta = read.delim("../../input/meta/ANIGMA-metadata.txt") %>%
+  select(PARTICIPANT.ID, LOCATION, TIMEPOINT, AGE, SUBTYPE, BMI, 
+         STAI_Y1, STAI_Y2, STAI_TOTAL, PSS, DAYS_TREAT, Weight_kg)
+dim(meta)
+```
+
+Get the per-particpant metadata.
+```{r}
+pipeline = "../../"
+prevModule = dir(path=pipeline, pattern="Participant_Metadata", full.names = TRUE)
+fileName = file.path(prevModule, "output", "ANIGMA-metadata_by_AN_participant.txt")
+diffs = read.delim(fileName)
+```
+
+Read in data from file: ``r fileName``
+
+This table has ``r nrow(diffs)`` rows and ``r ncol(diffs)`` columns.
+
+
+### Colors
+
+A named vector of color vectors.  Most of these match the previous paper. 
+```{r, fig.height=4, fig.width=2, echo=FALSE, include=FALSE}
+themeFile = "../../input/themes.R"
+if (file.exists(themeFile)){
+    source(themeFile)
+    myColorPalette = getColorPalette()
+    displayColorPalette(myColorPalette)
+}else{
+    myColorPalette = c(
+        # timepoint
+        nonED = "#1B9E77",
+        HC = "#1B9E77",
+        T1 = "#D95F02",
+        AN.AD = "#D95F02",
+        T2 = "#7570B3",
+        AN.DS = "#7570B3",
+        # site
+        Denver = "#1F78B4",
+        ACUTE = "#1F78B4",
+        UNC = "#F0027F",
+        CEED = "#F0027F",
+        FARGO = "coral",
+        # subgroups indicating site AND group/timepoint
+        UNC_HC = "#B2DF8A",
+        Denver_HC = "#33A02C",
+        UNC_T1 = "#FDBF6F",
+        UNC_T2 = "#FF7F00",
+        Denver_T1 = "#CAB2D6",
+        Denver_T2 = "#6A3D9A"
+    )
+    # plot.new(); legend(legend=names(myColorPalette), 
+    #                    col=myColorPalette, bty="n", x="center", pch=15, cex=2)
+    
+    colorKey = data.frame(color=myColorPalette, key=names(myColorPalette))
+    ggplot(data=colorKey, aes(x=1, y = 1:nrow(colorKey), fill=key, label=key)) +
+        geom_tile() +
+        scale_fill_manual(values = myColorPalette) +
+        theme_void()+
+        theme(legend.position="none") + 
+        geom_text()
+}
+```
+
+
+
+### Remove/modify individual data.
+
+Note: 469017 and 469019 are the outliers (same as before!) who lost weight during their stay, this was attributed to medication they had been taking ahead of their stay that lead to inflated weight values on arrival.  So the T1 weight (and by extension bmi) is not a valid measure here.
+
+```{r}
+meta[meta$PARTICIPANT.ID=="469017", "BMI"] = NA
+meta[meta$PARTICIPANT.ID=="469019", "BMI"] = NA
+```
+
+Note: 469021 has a T2 PSS score of 0, which we believe is a data entry error.
+Likewise for patient 469101, they have a pss score of 0 at T2.
+```{r}
+meta[meta$PARTICIPANT.ID=="469021" & meta$TIMEPOINT=="T2", "PSS"] = NA
+meta[meta$PARTICIPANT.ID=="469101" & meta$TIMEPOINT=="T1", "PSS"] = NA
+```
+
+## MAIN
+
+### BMI
+
+Body mass index (BMI) is a central metic of outcome for these patients.  A normal range is 18.5 to 25.
+```{r}
+bmi.cat.breaks = c(18.5, 25)
+assign.pss.category <- function(x){
+  result = rep(NA, length(x))
+  result[x < 18.5] = 1
+  result[x >= 18.5 & x < 25] = 2
+  result[x >= 25 ] = 3
+  return(result)
+}
+```
+
+```{r fig.height=2.5, fig.width=4}
+figureLabels = c("Non-ED","AN-AD","AN-DS")
+
+ggplot(data=meta,
+                  aes(x=TIMEPOINT, y=BMI, col=TIMEPOINT)) +
+    scale_colour_manual(values = myColorPalette,
+                        labels=figureLabels, name="Group") +
+    geom_hline(yintercept=bmi.cat.breaks, color="gray80", size=1) +
+    geom_boxplot(outlier.alpha = 0) +
+    geom_jitter(width = .07, height = 0, size=.5) +
+    xlab("") +
+    annotate("text", y=mean(c(18.5, 25)), x=.5, label="Normal",
+             color="gray70", angle=90, size=3) +
+    scale_x_discrete(labels=figureLabels) +
+    ggtitle("Body Mass Index") + 
+    theme_classic() 
+```
+
+```{r}
+bmi.plot.file = file.path(outdir, "bmi-boxplot.png")
+ggsave(filename = bmi.plot.file, height = 2.5, width = 4)
+```
+
+Saved: ``r bmi.plot.file``
+
+
+### PSS
+
+Perceived Stress Scale (PSS) is a survey-based metric of patient stress.
+
+Low is 0-13.
+Moderate is 14-26.
+High is 27-40.
+```{r}
+pss.cat.breaks = c(0, 13.5, 26.5, 40)
+assign.pss.category <- function(x){
+  result = rep(NA, length(x))
+  result[x < 14] = 1
+  result[x >= 14 & x < 27] = 2
+  result[x >=27 ] = 3
+  return(result)
+}
+```
+
+boxplots
+
+Previously, Kylie showed this data with boxplots.
+```{r fig.height=5, fig.width=7}
+p0 = ggplot(data=meta,
+            aes(x=TIMEPOINT, y=PSS, col=TIMEPOINT)) +
+    scale_colour_manual(values = myColorPalette,
+                        labels=figureLabels, name="Group") +
+    geom_hline(yintercept=pss.cat.breaks[c(2,3)], color="gray80", size=1.5) +
+    geom_hline(yintercept=pss.cat.breaks[c(1,4)], color="gray70", size=1) +
+    geom_boxplot(outlier.alpha = 0) +
+    geom_jitter(width = .07, height = 0) +
+    scale_x_discrete(labels=figureLabels, name="") +
+    ggtitle("Percieved Stress Scale") + 
+    annotate("text", y=c(mean(pss.cat.breaks[c(1,2)]),
+                         mean(pss.cat.breaks[c(2,3)]),
+                         mean(pss.cat.breaks[c(3,4)])),
+             x=rep(0.5,3),
+             label=c("Low", "Moderate", "High"),
+             color="gray70", angle=90, size=5) +
+    theme_classic() 
+p0
+```
+
+```{r}
+pss.plot.file = file.path(outdir, "pss-boxplot.png")
+ggsave(filename = pss.plot.file, height = 7, width = 7)
+```
+
+Saved: ``r pss.plot.file``
+
+
+
+
+
+```{r}
+sessionInfo()
+```
+
