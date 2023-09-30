@@ -11,7 +11,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-The meta data is given on a per-sample basis.  For some metrics, particularly the _changes in a given metric_ it is much more intuitive to work in a per-participant framework. In this document, we rearrange the data, and add some features.
+Understand which values within the metadata are correlated. Make sure you understand how these things are related in reality and mathematically.
 
 ## Settup
 
@@ -82,7 +82,19 @@ if (file.exists(themeFile)){
 
 ### Read metadata
 
-Read data.
+Get the per-particpant metadata.
+```{r}
+pipeline = "../../"
+prevModule = dir(path=pipeline, pattern="Participant_Metadata", full.names = TRUE)
+fileName = file.path(prevModule, "output", "ANIGMA-metadata_by_AN_participant.txt")
+diffs = read.delim(fileName)
+```
+
+Read in data from file: ``r fileName``
+
+This table has ``r nrow(diffs)`` rows and ``r ncol(diffs)`` columns.
+
+Read per-sample data.
 ```{r}
 meta = read.delim("../../input/meta/ANIGMA-metadata.txt") %>%
   select(PARTICIPANT.ID, LOCATION, TIMEPOINT, AGE, SUBTYPE, BMI, 
@@ -92,71 +104,6 @@ dim(meta)
 ```
 
 This meta data has ``r nrow(meta)`` rows and ``r ncol(meta)`` columns.
-
-### Remove/modify individual data.
-
-Note: 469017 and 469019 are the outliers (same as before!) who lost weight during their stay, this was attributed to medication they had been taking ahead of their stay that lead to inflated weight values on arrival.  So the T1 weight (and by extention bmi) is not a valid measure here.
-
-```{r}
-meta[meta$PARTICIPANT.ID=="469017", "BMI"] = NA
-meta[meta$PARTICIPANT.ID=="469019", "BMI"] = NA
-```
-
-Note: 469021 has a T2 PSS score of 0, which we believe is a data entry error.
-Likewise for patient 469101, they have a pss score of 0 at T2.
-```{r}
-meta[meta$PARTICIPANT.ID=="469021" & meta$TIMEPOINT=="T2", "PSS"] = NA
-meta[meta$PARTICIPANT.ID=="469101" & meta$TIMEPOINT=="T1", "PSS"] = NA
-```
-
-After this modification, this meta data has ``r nrow(meta)`` rows and ``r ncol(meta)`` columns.
-
-## Arrange data by participant
-
-```{r}
-# Pull out the constants, 
-diffs = meta %>% filter(TIMEPOINT=="T1") %>%
-  mutate(T1.severity = 18.5 - BMI) %>% 
-  select(PARTICIPANT.ID, LOCATION, AGE, SUBTYPE, T1.severity, DAYS_TREAT, DUR_ILLNESS_YRS)
-
-# Loop through all the things that have a T2-T1 difference.
-diffables = c("STAI_Y1", "STAI_Y2", "STAI_TOTAL", "PSS", "BMI", "Weight_kg")
-for (feature in diffables){
-  t1t2diff = meta %>% 
-    select(PARTICIPANT.ID, all_of(feature), TIMEPOINT) %>% 
-    pivot_wider(id_cols = PARTICIPANT.ID, names_from = TIMEPOINT, values_from = all_of(feature)) %>%
-    select(PARTICIPANT.ID, T1, T2) %>% 
-    mutate(diff = T2 - T1) %>%
-      rename_with( function(name){ 
-          name = ifelse(name=="diff", paste0(feature, ".diff"), name) 
-          name = ifelse(name=="T1", paste0(feature, ".T1"), name)
-          name = ifelse(name=="T2", paste0(feature, ".T2"), name)
-          return(name)
-      } ) 
-  # %>%
-  #   select(PARTICIPANT.ID, all_of(feature))
-  diffs = merge(diffs, t1t2diff, by="PARTICIPANT.ID", all.x=T)
-}
-
-dim(diffs)
-```
-
-This form of the data only has the AN participants. The new form has ``r nrow(diffs)`` rows and ``r ncol(diffs)`` columns.
-
-### Export Reshaped data
-
-Export the wide form data.
-
-```{r}
-fileName = file.path(outdir, "ANIGMA-metadata_by_AN_participant.txt")
-write.table(diffs, file=fileName, sep="\t", quote=F, row.names = F)
-```
-
-The reshaped data was saved to: ``r fileName``.
-
-This form only has the participants who has anorexia.  The same shape of data for the healthy control (non-eating disorder) participants, already exists as a subset of the original metadata.  For the those participants, there is no T1/T2 distinction, and no differences to be calculated. 
-
-We won't save the HC data to a file; just show the code and the size summary. 
 
 The HC equivalent data frame:
 ```{r}
@@ -168,8 +115,11 @@ This subset of the data has ``r nrow(HC)`` rows and ``r ncol(HC)`` columns.
 
 ## Visualize broad view correlations
 
-Understand which values within the metadata are correlated. Make sure you understand how these things are related in reality and mathematically.
-
+Create a correlation matrix.
+```{r}
+df = diffs %>% select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE)
+cor.co = cor(df, use="pairwise.complete.obs", method = "pearson")
+```
 
 ```{r}
 # much of this is taken from
@@ -198,8 +148,6 @@ make_heatmap_1 <- function(cor.co2){
         coord_fixed()
 }
 
-df = diffs %>% select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE)
-cor.co = cor(df, use="pairwise.complete.obs", method = "pearson")
 cor.co2 = tidyMelt(cor.co, values_name="cor")
 
 make_heatmap_1(cor.co2)
@@ -356,6 +304,8 @@ related2.diff.rev = data.frame(x=paste(related$x, "diff", sep="."),
                       y=paste(related$y, "T2", sep="."))
 
 # all diffables have a relationship between their diff and each time point
+# diffables = c("STAI_Y1", "STAI_Y2", "STAI_TOTAL", "PSS", "BMI", "Weight_kg")
+diffables = gsub(grep(".diff", names(diffs), value = T), pattern=".diff", replacement="")
 relatedDiff1 = data.frame(x=paste(diffables, "T1", sep="."),
                          y=paste(diffables, "diff", sep="."))
 relatedDiff2 = data.frame(x=paste(diffables, "T2", sep="."),
@@ -449,7 +399,7 @@ rm(list = setdiff(ls(), c("manual.order", "stack2", "diffs", "HC", "outdir")))
 
 As a function:
 ```{r}
-#functions
+# helper functions
 # Get upper triangle of the correlation matrix
 get_upper_tri <- function(cormat){
     cormat[lower.tri(cormat)]<- NA
@@ -477,8 +427,12 @@ make_heatmap_1 <- function(cor.co2){
                                          size = 8, hjust = 1)) +
         coord_fixed()
 }
+```
 
-make_heatmap_2 <- function(dataframe, my.order=manual.order, markPairings=stack2, pvalCut=0.01){
+```{r}
+# big function
+make_heatmap_2 <- function(dataframe, my.order=manual.order, markPairings=stack2, pvalCut=0.01,
+                           cor.mat.file=NULL, pval.mat.file=NULL){
     if (is.null(my.order)){
         my.order = names(dataframe)
     }
@@ -493,6 +447,11 @@ make_heatmap_2 <- function(dataframe, my.order=manual.order, markPairings=stack2
     }
     
     cor.co = cor(dataframe, use="pairwise.complete.obs", method = "pearson")
+    if (!is.null(cor.mat.file)){
+        write.table(cbind(feature=row.names(cor.co), cor.co), 
+                    file=cor.mat.file, 
+                    sep="\t", quote=F, row.names = F, col.names = T)
+    }
     
     cors = matrix(data=NA, nrow=length(feats), 
                   ncol=length(feats), 
@@ -510,6 +469,12 @@ make_heatmap_2 <- function(dataframe, my.order=manual.order, markPairings=stack2
                 }
             }
         }
+    }
+    
+    if (!is.null(pval.mat.file)){
+        write.table(cbind(feature=row.names(pvals), pvals), 
+                    file=pval.mat.file, 
+                    sep="\t", quote=F, row.names = F, col.names = T)
     }
     
     # upper - all correlation values
@@ -560,13 +525,15 @@ make_heatmap_2 <- function(dataframe, my.order=manual.order, markPairings=stack2
     return(figure)
 }
 
-fig1 = make_heatmap_2(diffs %>% select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE))
+fig1 = make_heatmap_2(diffs %>% select(-PARTICIPANT.ID, -LOCATION, -SUBTYPE),
+                      cor.mat.file = file.path(outdir, "correlations_AN_cor.txt"),
+                      pval.mat.file = file.path(outdir, "correlations_AN_pval.txt"))
 fig1
 ```
 
 Save figure to file.
 ```{r}
-ggsave(filename = file.path(outdir, "correlations.png"),
+ggsave(filename = file.path(outdir, "correlations_AN.png"),
        plot = fig1)
 ```
 
