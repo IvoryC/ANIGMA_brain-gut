@@ -4,6 +4,8 @@
 # ignore the /results folder for compatibilty with code ocean.
 /results/**
 
+analysis/**/output/**
+
 # system file
 .DS_Store
 
