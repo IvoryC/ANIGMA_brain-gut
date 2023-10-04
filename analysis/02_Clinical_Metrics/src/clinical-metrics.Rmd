@@ -4,7 +4,7 @@ output:
   html_document:
     code_folding: hide
     toc: true
-    toc_depth: 2
+    toc_depth: 4
 ---
 
 ```{r setup, include=FALSE}
@@ -15,8 +15,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ### Libraries
 
-```{r}
-tellme <- function(name){message("Package ", name, " version: ", packageVersion(name))}
+```{r results = "hold"}
+tellme <- function(name){print(paste0("Package ", name, " version: ", packageVersion(name)))}
 
 library(tidyr); tellme("tidyr")
 suppressPackageStartupMessages(library(dplyr)); tellme("dplyr")
@@ -32,7 +32,7 @@ suppressWarnings( dir.create(outdir) )
 
 Output will be saved to: ``r outdir``
 
-### read data
+### Read data
 
 Read data.
 ```{r}
@@ -134,10 +134,12 @@ assign.pss.category <- function(x){
 }
 ```
 
-```{r fig.height=2.5, fig.width=4}
+#### BMI boxplot
+
+```{r fig.height=3, fig.width=5}
 figureLabels = c("Non-ED","AN-AD","AN-DS")
 
-ggplot(data=meta,
+bmiP = ggplot(data=meta,
                   aes(x=TIMEPOINT, y=BMI, col=TIMEPOINT)) +
     scale_colour_manual(values = myColorPalette,
                         labels=figureLabels, name="Group") +
@@ -150,15 +152,85 @@ ggplot(data=meta,
     scale_x_discrete(labels=figureLabels) +
     ggtitle("Body Mass Index") + 
     theme_classic() 
+bmiP
+
+bmiP1 = bmiP + theme(legend.position="none")
 ```
 
 ```{r}
 bmi.plot.file = file.path(outdir, "bmi-boxplot.png")
-ggsave(filename = bmi.plot.file, height = 2.5, width = 4)
+ggsave(bmiP1, filename = bmi.plot.file, height = 2.5, width = 3)
 ```
 
 Saved: ``r bmi.plot.file``
 
+#### BMI by site
+
+Separated by site.
+```{r fig.height=3, fig.width=7}
+bmiP2 = bmiP1 + facet_wrap("LOCATION")
+bmiP2
+```
+
+```{r}
+bmi.plot.file.site = file.path(outdir, "bmi-boxplot_by-site.png")
+ggsave(bmiP2, filename = bmi.plot.file.site, height = 3, width = 7)
+```
+
+Saved: ``r bmi.plot.file.site``
+
+#### BMI difference
+
+```{r}
+bmi.diff = ggplot(data=diffs, aes(x=BMI.diff)) +
+    geom_vline(xintercept=0, color="gray5", size=1) + 
+    geom_histogram(binwidth = .5, fill="coral", col="gray5") + 
+    ggtitle("BMI difference") + 
+    xlab("")
+bmi.diff
+```
+
+
+```{r}
+add_overhead_boxplot = function(gghistogram, xvals, yish){
+    xvals = na.omit(xvals)
+    gghistogram + 
+        geom_rect(ymin=yish-1, ymax = Inf, xmin=-Inf, xmax=Inf, fill="white") +
+        geom_segment(x=min(xvals), xend=max(xvals), y=yish, yend=yish) +
+        geom_rect(xmin=quantile(xvals, .25), xmax=mean(xvals), 
+                  ymin=yish-.5, ymax=yish+.5, fill="white", color="gray5") +
+        geom_rect(xmin=mean(xvals), xmax=quantile(xvals, .75), 
+                  ymin=yish-.5, ymax=yish+.5, fill="white", color="gray5") + 
+        ylim(min=NA, max=yish+1)
+}
+
+add_overhead_boxplot(bmi.diff, xvals=diffs$BMI.diff, yish=18.5)
+```
+
+
+```{r}
+bmi.diff.file = file.path(outdir, "bmi-difference.png")
+ggsave(filename = bmi.diff.file, height = 3, width = 7)
+```
+
+Saved: ``r bmi.diff.file``
+
+
+
+#### BMI difference by site
+```{r}
+ggplot(data=diffs, aes(x=BMI.diff, fill=LOCATION)) +
+    scale_fill_manual(values = myColorPalette) +
+    geom_vline(xintercept=0, color="gray5", size=1) + 
+    geom_histogram(binwidth = .5) + facet_wrap("LOCATION")
+```
+
+```{r}
+bmi.diff.file.site = file.path(outdir, "bmi-difference_by-site.png")
+ggsave(filename = bmi.diff.file.site, height = 3, width = 7)
+```
+
+Saved: ``r bmi.diff.file.site``
 
 ### PSS
 
@@ -178,10 +250,20 @@ assign.pss.category <- function(x){
 }
 ```
 
-boxplots
+#### PSS boxplot
 
 Previously, Kylie showed this data with boxplots.
-```{r fig.height=5, fig.width=7}
+```{r fig.height=2.5, fig.width=4}
+add_pss_labels = function(ggPlotObj){
+    gg2 = ggPlotObj + 
+    annotate("text", y=c(mean(pss.cat.breaks[c(1,2)]),
+                         mean(pss.cat.breaks[c(2,3)]),
+                         mean(pss.cat.breaks[c(3,4)])),
+             x=rep(0.5,3),
+             label=c("Low", "Moderate", "High"),
+             color="gray70", angle=90, size=2.5)
+    return(gg2)
+}
 p0 = ggplot(data=meta,
             aes(x=TIMEPOINT, y=PSS, col=TIMEPOINT)) +
     scale_colour_manual(values = myColorPalette,
@@ -189,31 +271,86 @@ p0 = ggplot(data=meta,
     geom_hline(yintercept=pss.cat.breaks[c(2,3)], color="gray80", size=1.5) +
     geom_hline(yintercept=pss.cat.breaks[c(1,4)], color="gray70", size=1) +
     geom_boxplot(outlier.alpha = 0) +
-    geom_jitter(width = .07, height = 0) +
+    geom_jitter(width = .07, height = 0, size=.5) +
     scale_x_discrete(labels=figureLabels, name="") +
-    ggtitle("Percieved Stress Scale") + 
-    annotate("text", y=c(mean(pss.cat.breaks[c(1,2)]),
-                         mean(pss.cat.breaks[c(2,3)]),
-                         mean(pss.cat.breaks[c(3,4)])),
-             x=rep(0.5,3),
-             label=c("Low", "Moderate", "High"),
-             color="gray70", angle=90, size=5) +
+    ggtitle("Percieved Stress Scale")  +
     theme_classic() 
-p0
+p1 = add_pss_labels(p0)
+p1
 ```
 
 ```{r}
+p2 = add_pss_labels(p0) + theme(legend.position="none")
 pss.plot.file = file.path(outdir, "pss-boxplot.png")
-ggsave(filename = pss.plot.file, height = 7, width = 7)
+ggsave(filename = pss.plot.file, height = 2.5, width = 3)
 ```
 
 Saved: ``r pss.plot.file``
 
 
+#### PSS by site
+
+```{r}
+p0
+p0 + facet_wrap("LOCATION")
+```
+
+```{r}
+pss.plot.site = file.path(outdir, "pss-boxplot_by-site.png")
+ggsave(p0 + 
+           facet_wrap("LOCATION") + 
+           theme(legend.position="none"), 
+       filename = pss.plot.site, height = 3, width = 7)
+```
+
+Saved: ``r pss.plot.site``
+
+#### PSS difference
+
+```{r}
+pss.diff = ggplot(data=diffs, aes(x=PSS.diff)) +
+    geom_vline(xintercept=0, color="gray5", size=1) + 
+    geom_histogram(binwidth = 3, fill="dodgerblue", col="gray5") +
+    ggtitle("PSS difference") +
+    xlab("")
+pss.diff
+```
+
+```{r}
+add_overhead_boxplot(pss.diff, xvals=diffs$PSS.diff, yish=17)
+```
+
+```{r}
+pss.diff.file = file.path(outdir, "pss-difference.png")
+ggsave(filename = pss.diff.file, height = 3, width = 7)
+```
+
+Saved: ``r pss.diff.file``
+
+#### PSS difference by site
+
+```{r}
+ggplot(data=diffs, aes(x=PSS.diff, fill=LOCATION)) +
+    geom_vline(xintercept=0, color="gray5", size=1) + 
+    geom_histogram(binwidth = 3, col="gray5")  + 
+    scale_colour_manual(values = myColorPalette) +
+    theme(legend.position="none") +
+    ggtitle("PSS difference") +
+    xlab("") +
+    facet_wrap("LOCATION")
+```
+
+```{r}
+pss.diff.file.site = file.path(outdir, "pss-difference_by-site.png")
+ggsave(filename = pss.diff.file.site, height = 3, width = 7)
+```
+
+Saved: ``r pss.diff.file.site``
+
+### STAI
 
 
 
 ```{r}
 sessionInfo()
 ```
-
