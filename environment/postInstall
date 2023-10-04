@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -e
+
+# download BioLockJ
+wget https://github.com/BioLockJ-Dev-Team/BioLockJ/releases/download/v1.4.2/BioLockJ-v1.4.2.tar.gz
+
+# unpack BioLockJ
+tar -zxf BioLockJ-v1.4.2.tar.gz
+
+# install BioLockJ
+cd BioLockJ
+./install
