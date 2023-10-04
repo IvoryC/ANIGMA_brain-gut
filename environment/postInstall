@@ -1,12 +1,57 @@
 #!/usr/bin/env bash
 set -e
 
+### First install java.
+### Then install BioLockJ.
+
+# Install java
+# taken from: https://hub.docker.com/r/picoded/ubuntu-openjdk-8-jdk/dockerfile/
+
+# This is in accordance to : https://www.digitalocean.com/community/tutorials/how-to-install-java-with-apt-get-on-ubuntu-16-04
+apt-get update
+apt-get install -y openjdk-8-jdk
+apt-get install -y ant
+apt-get clean
+rm -rf /var/lib/apt/lists/* 
+rm -rf /var/cache/oracle-jdk8-installer
+	
+# Fix certificate issues, found as of 
+# https://bugs.launchpad.net/ubuntu/+source/ca-certificates-java/+bug/983302
+apt-get update
+apt-get install -y ca-certificates-java
+apt-get clean
+update-ca-certificates -f
+rm -rf /var/lib/apt/lists/*
+rm -rf /var/cache/oracle-jdk8-installer
+
+# Setup JAVA_HOME, this is useful for docker commandline
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/
+
+
+
+
+
+
 # download BioLockJ
 wget https://github.com/BioLockJ-Dev-Team/BioLockJ/releases/download/v1.4.2/BioLockJ-v1.4.2.tar.gz
 
 # unpack BioLockJ
 tar -zxf BioLockJ-v1.4.2.tar.gz
+mv BioLockJ ~/BioLockJ
+rm BioLockJ-v1.4.2.tar.gz
 
 # install BioLockJ
-cd BioLockJ
+cd ~/BioLockJ
 ./install
+
+cat /root/.bashrc
+
+export BLJ=/root/BioLockJ
+export BLJ_PROJ=$BLJ/pipelines
+export PATH=$BLJ/script:$PATH
+
+echo "My Path"
+echo $PATH
+
+biolockj --version
+biolockj --help
