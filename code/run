@@ -4,4 +4,4 @@ export BLJ=/root/BioLockJ
 export BLJ_PROJ=$BLJ/pipelines
 export PATH=$BLJ/script:$PATH
 
-biolockj --blj_proj ../results analysis/anigma_stress.config
+biolockj -f --blj_proj ../results analysis/anigma_stress.config
