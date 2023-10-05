@@ -4,4 +4,5 @@ export BLJ=/root/BioLockJ
 export BLJ_PROJ=$BLJ/pipelines
 export PATH=$BLJ/script:$PATH
 
+# Run biolockj in the foreground (-f) when running on the code ocean platform.
 biolockj -f --blj_proj ../results analysis/anigma_stress.config
