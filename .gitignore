@@ -5,8 +5,8 @@
 /results/**
 
 # In general, don't save output files in git
-analysis/**/output/**
-analysis/**/src/*.html
+**/output/**
+**/src/*.html
 
 # system file
 .DS_Store
