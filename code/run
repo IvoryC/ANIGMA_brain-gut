@@ -4,15 +4,4 @@ export BLJ=/root/BioLockJ
 export BLJ_PROJ=$BLJ/pipelines
 export PATH=$BLJ/script:$PATH
 
-echo "My Path"
-echo $PATH
-
-dotdot=$(dirname $PWD)
-echo "what is dotdot"
-echo ${dotdot}
-
-echo "What is under root?"
-ls /
-ls *
-
-biolockj --blj_proj ${dotdot}/results ${dotdot}/analysis/anigma_stress.config
+biolockj --blj_proj ../results ../analysis/anigma_stress.config
