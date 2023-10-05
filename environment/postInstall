@@ -1,41 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
-### First install java, which is required to run BioLockJ.
-### Then pandoc, which is requried if rendering markdowns.
-### Then install BioLockJ.
+### Install BioLockJ.
 
 ### Any R packages should be handled in the Dockerfile.
-
-echo "======== install apt-get packages ========"
-
-# Install java
-# taken from: https://hub.docker.com/r/picoded/ubuntu-openjdk-8-jdk/dockerfile/
-
-# This is in accordance to : https://www.digitalocean.com/community/tutorials/how-to-install-java-with-apt-get-on-ubuntu-16-04
-apt-get update
-
-echo "======== install java ========"
-apt-get install -y openjdk-8-jdk
-apt-get install -y ant
-
-# Fix certificate issues, found as of 
-# https://bugs.launchpad.net/ubuntu/+source/ca-certificates-java/+bug/983302
-apt-get install -y ca-certificates-java
-
-# Setup JAVA_HOME, this is useful for docker commandline
-export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/
-
-echo "======== install pandoc (needed to render markdowns) ========"
-
-apt-get install -y pandoc
-pandoc --version
-
-# clean up
-apt-get clean
-update-ca-certificates -f
-rm -rf /var/lib/apt/lists/*
-rm -rf /var/cache/oracle-jdk8-installer
 
 echo "======== install BioLockJ ========"
 
