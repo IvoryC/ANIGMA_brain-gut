@@ -2,9 +2,13 @@
 
 Analysis of clinical data and 16S data from the ANIGMA cohort.
 
+## See outputs
+
+The scripts to create outputs and some input files are stored in the git repository itself.  The outputs they make, such as figures, are available as non-tracked attachements, see the releases page: [https://github.com/IvoryC/ANIGMA_brain-gut/releases](https://github.com/IvoryC/ANIGMA_brain-gut/releases). These can be downloaded to browse locally.
+
 ## Project File Structure
 
-This project is designed to be compatible with specific software.
+This project is designed to be compatible with specific software: Code Ocean and BioLockJ.
 
 ### Code Ocean
 
