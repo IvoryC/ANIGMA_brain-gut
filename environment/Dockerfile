@@ -1,4 +1,4 @@
-# hash:sha256:c5e750400e90d3a9d45a57b0333df2586bcec9e79a0414f05a9c945b996231b4
+# hash:sha256:cb247da1411087b2389670deb20b83ce59dc6a0b51113b1e25d553034fe8bd35
 FROM registry.codeocean.com/codeocean/r-studio:2022.07.0-548-r4.2.1-ubuntu18.04
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -12,6 +12,7 @@ RUN apt-get update \
 RUN Rscript -e 'remotes::install_version("dplyr", "1.1.3")' \
     && Rscript -e 'remotes::install_version("ggplot2", "3.4.3")' \
     && Rscript -e 'remotes::install_version("ggrepel", "0.9.3")' \
+    && Rscript -e 'remotes::install_version("markdown", "1.9")' \
     && Rscript -e 'remotes::install_version("tidyr", "1.3.0")'
 
 COPY postInstall /
