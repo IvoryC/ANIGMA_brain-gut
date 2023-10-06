@@ -100,6 +100,10 @@ if (file.exists(themeFile)){
 }
 ```
 
+Use the theme_classic() ggplot theme unless otherwise indicated.
+```{r}
+theme_set(theme_classic())
+```
 
 
 ### Remove/modify individual data.
@@ -312,7 +316,8 @@ pss.diff = ggplot(data=diffs, aes(x=PSS.diff)) +
     geom_vline(xintercept=0, color="gray5", size=1) + 
     geom_histogram(binwidth = 3, fill="dodgerblue", col="gray5") +
     ggtitle("PSS difference") +
-    xlab("")
+    xlab("") +
+    theme_classic()
 pss.diff
 ```
 
@@ -333,7 +338,7 @@ Saved: ``r pss.diff.file``
 ggplot(data=diffs, aes(x=PSS.diff, fill=LOCATION)) +
     geom_vline(xintercept=0, color="gray5", size=1) + 
     geom_histogram(binwidth = 3, col="gray5")  + 
-    scale_colour_manual(values = myColorPalette) +
+    scale_fill_manual(values = myColorPalette) +
     theme(legend.position="none") +
     ggtitle("PSS difference") +
     xlab("") +
@@ -349,6 +354,101 @@ Saved: ``r pss.diff.file.site``
 
 ### STAI
 
+The State Trait Anxiety Index (STAI) is represented as Y1 and Y2, or as a total. The Y1 is State Anxiety component. The Y2 is the Trait anxiety component.
+
+No or low anxiety: 40 - 74
+Moderate anxiety: 75 - 88
+High anxiety: 89 - 160
+
+(Kylie may modify that scale later)
+
+```{r}
+stai.tot.breaks = c(74.5, 88.5)
+
+assign.tot.Category = function(x){
+  result = rep(NA, length(x))
+  result[x < 75] = 1
+  result[x >= 75 & x < 89] = 2
+  result[x >=89 ] = 3
+  return(result)
+}
+```
+
+#### STAI boxplot
+
+```{r}
+staiDF = meta %>% 
+    select(TIMEPOINT, STAI_Y1, STAI_Y2, STAI_TOTAL, LOCATION) %>%
+    pivot_longer(cols=c(-TIMEPOINT, -LOCATION), names_to = "category", values_to = "stai")
+```
+
+
+```{r fig.height = 3, fig.width = 7}
+ggplot(data=staiDF, aes(group_by=TIMEPOINT, y=stai, col=TIMEPOINT, x=category)) +
+    scale_colour_manual(values = myColorPalette,
+                        labels=figureLabels, name="Group") +
+    # theme(legend.position="none") +
+    # lines
+    geom_hline(yintercept=seq(0,160,25), color="gray90", size=0.4) +
+    # range labels
+    geom_segment(x=-Inf, xend=1.5, y=74.5, yend=74.5, col="gray40") +
+    geom_segment(x=-Inf, xend=1.5, y=88.5, yend=88.5, col="gray40") +
+    geom_text(x=.42, y=mean(stai.tot.breaks), label="moderate", col="gray40", hjust="inward", size=2) +
+    geom_text(x=.42, y=stai.tot.breaks[1], label="low", col="gray40", vjust = 1.2, hjust="inward") +
+    geom_text(x=.42, y=stai.tot.breaks[2], label="high", col="gray40", vjust = -.2, hjust="inward") +
+    # xlim(min=-.5, max=NA) +
+    # data
+    ggtitle("State Trait Anxiety Index") +
+    geom_boxplot(outlier.alpha = 0) +
+    geom_jitter(position=position_jitterdodge(jitter.width = .09, jitter.height = 0), size=.5) + 
+    xlab("") + ylab("Anxiety Index") +
+    theme_classic()
+
+```
+
+
+```{r}
+stai.boxplot.file = file.path(outdir, "stai-boxplot.png")
+ggsave(filename = stai.boxplot.file, height = 3, width = 7)
+```
+
+Saved: ``r stai.boxplot.file``
+
+#### STAI differences
+
+Histograms of differences in a grid to give the histogram of T2-T1 for each location and for each category (Y1, Y2, Total).
+
+```{r}
+staiDiff = diffs %>% 
+    select(PARTICIPANT.ID, STAI_Y1.diff, STAI_Y2.diff, STAI_TOTAL.diff, LOCATION) %>%
+    pivot_longer(cols=c(-PARTICIPANT.ID, -LOCATION), 
+                 names_to = "category", values_to = "difference") %>%
+    mutate(category = gsub(".diff", "", category))
+```
+
+```{r}
+ggplot(data=staiDiff, aes(x=difference)) +
+    geom_vline(xintercept=0, color="gray5", size=1) + 
+    geom_histogram(binwidth = 3, col="gray5")  + 
+    scale_fill_manual(values = myColorPalette) +
+    # theme(legend.position="none") +
+    ggtitle("STAI difference") +
+    xlab("(T2 - T1)") +
+facet_grid(rows=NULL, cols=vars(category))
+```
+
+#### STAI differences by site
+
+```{r}
+ggplot(data=staiDiff, aes(x=difference, fill=LOCATION)) +
+    geom_vline(xintercept=0, color="gray5", size=1) + 
+    geom_histogram(binwidth = 3, col="gray5")  + 
+    scale_fill_manual(values = myColorPalette) +
+    # theme(legend.position="none") +
+    ggtitle("STAI difference") +
+    xlab("(T2 - T1)") +
+    facet_grid(rows=vars(LOCATION), cols=vars(category))
+```
 
 
 ```{r}
