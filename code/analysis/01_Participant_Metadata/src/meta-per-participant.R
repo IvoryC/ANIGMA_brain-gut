@@ -33,18 +33,49 @@ message("This meta data has ", nrow(meta), " rows and ", ncol(meta), " columns."
 
 ### Remove/modify individual data.
 
-# Note: 469017 and 469019 are the outliers (same as before!) who lost weight during their stay, this was attributed to medication they had been taking ahead of their stay that lead to inflated weight values on arrival.  So the T1 weight (and by extention bmi) is not a valid measure here.
+# Modifications were made in the metadata table.  
+# But that gets manually updated, and old data errors could be reintroduced.
+# Instead of modifiying the data here, check that the corrections have already been made.
+checkIt <- function(value, expectation=NA){
+    isGood = c()
+    if (is.na(expectation)){
+        isGood = is.na(value)
+    }else{
+        isGood = value == expectation
+    }
+    if(isGood){
+        message("Metadata check is good.")
+    }else{
+        stop("Review metadata.  Expected value of [", expectation, "] but found [", value, "].")
+    }
+}
 
-meta[meta$PARTICIPANT.ID=="469017", "BMI"] = NA
-meta[meta$PARTICIPANT.ID=="469019", "BMI"] = NA
+# Note: 469017 and 469019 are the outliers (same as before!) who lost weight during their stay, 
+# this was attributed to medications they had been taking ahead of their stay that lead to inflated 
+# weight values on arrival.  So the T1 weight (and by extension bmi) is not a valid measure here.
 
+# meta[meta$PARTICIPANT.ID=="469017" & meta$TIMEPOINT=="T1", "BMI"] = NA
+# meta[meta$PARTICIPANT.ID=="469019" & meta$TIMEPOINT=="T1", "BMI"] = NA
+# meta[meta$PARTICIPANT.ID=="469017" & meta$TIMEPOINT=="T1", "Weight_kg"] = NA
+# meta[meta$PARTICIPANT.ID=="469019" & meta$TIMEPOINT=="T1", "Weight_kg"] = NA
+checkIt(meta[meta$PARTICIPANT.ID=="469017" & meta$TIMEPOINT=="T1", "BMI"], NA)
+checkIt(meta[meta$PARTICIPANT.ID=="469019" & meta$TIMEPOINT=="T1", "BMI"], NA)
+checkIt(meta[meta$PARTICIPANT.ID=="469017" & meta$TIMEPOINT=="T1", "Weight_kg"], NA)
+checkIt(meta[meta$PARTICIPANT.ID=="469019" & meta$TIMEPOINT=="T1", "Weight_kg"], NA)
 
 # Note: 469021 has a T2 PSS score of 0, which we believe is a data entry error.
 # Likewise for patient 469101, they have a pss score of 0 at T2.
-meta[meta$PARTICIPANT.ID=="469021" & meta$TIMEPOINT=="T2", "PSS"] = NA
-meta[meta$PARTICIPANT.ID=="469101" & meta$TIMEPOINT=="T1", "PSS"] = NA
+# meta[meta$PARTICIPANT.ID=="469021" & meta$TIMEPOINT=="T2", "PSS"] = NA
+# meta[meta$PARTICIPANT.ID=="469101" & meta$TIMEPOINT=="T1", "PSS"] = NA
+checkIt(meta[meta$PARTICIPANT.ID=="469021" & meta$TIMEPOINT=="T2", "PSS"], NA)
+checkIt(meta[meta$PARTICIPANT.ID=="469101" & meta$TIMEPOINT=="T1", "PSS"], NA)
 
-message("After this modification, this meta data has ", nrow(meta), " rows and ", ncol(meta), " columns.")
+# Note: 469021 has a T2 STAI_TOTAL score of 76, but that is not the total of the Y1 and Y2 values. 
+# Kylie checked and it looks like the Y2 values are no good, (therefore so is the total).
+# meta[meta$PARTICIPANT.ID=="469021" & meta$TIMEPOINT=="T2", "STAI_TOTAL"] = NA
+# meta[meta$PARTICIPANT.ID=="469021" & meta$TIMEPOINT=="T2", "STAI_Y2"] = NA
+checkIt(meta[meta$PARTICIPANT.ID=="469021" & meta$TIMEPOINT=="T2", "STAI_TOTAL"], NA)
+checkIt(meta[meta$PARTICIPANT.ID=="469021" & meta$TIMEPOINT=="T2", "STAI_Y2"], NA)
 
 
 #### MAIN - arrange by participant ####
