@@ -104,6 +104,9 @@ for (feature in diffables){
     diffs = merge(diffs, t1t2diff, by="PARTICIPANT.ID", all.x=T)
 }
 
+# Create the bmi gain per day feature
+diffs = diffs %>% mutate(BMI.gain.per.day = BMI.diff / DAYS_TREAT)
+
 dim(diffs)
 
 message("This form of the data only has the AN participants. The new form has", nrow(diffs), " rows and ", ncol(diffs), " columns.")

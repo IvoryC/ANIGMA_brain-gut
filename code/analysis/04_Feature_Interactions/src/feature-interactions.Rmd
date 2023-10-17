@@ -202,7 +202,7 @@ Manually set the order.
 
 ```{r}
 manual.order = c('BMI.T1', 'Weight_kg.T1', 'BMI.T2', 'Weight_kg.T2',
-                 'T1.severity', 'DAYS_TREAT', 'BMI.diff', 'Weight_kg.diff', 
+                 'T1.severity', 'BMI.gain.per.day', 'DAYS_TREAT', 'BMI.diff', 'Weight_kg.diff', 
                  'AGE', 'DUR_ILLNESS_YRS', 
                  'PSS.diff', 'STAI_Y1.diff', 'STAI_Y2.diff', 'STAI_TOTAL.diff', 
                  'PSS.T2', 
@@ -279,11 +279,16 @@ make_heatmap_1(reshapeMatrixToPlot(cors)) + ggtitle("Upper triangle, excluding i
 make_heatmap_1(reshapeMatrixToPlot(cors.sig)) + ggtitle(paste0("Correlations with p-value less than ", pvalCut))
 ```
 
-Now lets note what is mathmatically related.
+Now lets note what is mathematically related.
 ```{r}
 # T1 severity is related to BMI at T1 and therefore also related to weight at T1
-severity = data.frame(x=c("T1.severity", "T1.severity"), 
-                      y=c("BMI.T1", "Weight_kg.T1"))
+severity = data.frame(x=rep("T1.severity", 4), 
+                      y=c("BMI.T1", "Weight_kg.T1", "BMI.gain.per.day", "BMI.diff"))
+
+bmiPerDay = data.frame(x=rep("BMI.gain.per.day", 8) ,
+                       y=c("Weight_kg.T1", "Weight_kg.T2", "Weight_kg.diff", 
+                           "BMI.T1", "BMI.T2", "BMI.diff", 
+                           "DAYS_TREAT", "T1.severity"))
 
 related = data.frame(x=c("STAI_TOTAL", "STAI_TOTAL", "BMI"),
                      y=c("STAI_Y1", "STAI_Y2", "Weight_kg"))
@@ -315,7 +320,7 @@ stack = rbind(related1, related2,
               related1.diff, related1.diff.rev, 
               related2.diff, related2.diff.rev, 
               relatedDiff1, relatedDiff2, 
-              severity)
+              severity, bmiPerDay)
 
 # relatedness goes both ways
 reverse.stack = data.frame(x=stack$y, y=stack$x)

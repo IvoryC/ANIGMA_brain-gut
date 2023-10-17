@@ -236,6 +236,32 @@ ggsave(filename = bmi.diff.file.site, height = 3, width = 7)
 
 Saved: ``r bmi.diff.file.site``
 
+#### BMI gain per day
+
+```{r}
+bmi.pday = ggplot(data=diffs, aes(x=BMI.gain.per.day)) +
+    geom_vline(xintercept=0, color="gray5", size=1) + 
+    geom_histogram(fill="purple", col="gray5") + 
+    ggtitle("average daily BMI gain") + 
+    xlab("")
+bmi.pday
+```
+
+```{r}
+bmi.pday.file = file.path(outdir, "bmi-mean-daily-gain.png")
+ggsave(filename = bmi.pday.file, height = 3, width = 7)
+```
+
+Saved: ``r bmi.pday.file``
+
+```{r}
+bmi.pday + 
+    scale_fill_manual(values = myColorPalette) +
+    facet_wrap("LOCATION")
+```
+
+
+
 ### PSS
 
 Perceived Stress Scale (PSS) is a survey-based metric of patient stress.
