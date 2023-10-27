@@ -80,7 +80,7 @@ theme_set(theme_classic())
 
 Pick a taxonomic level.
 ```{r}
-taxaLevel = "species"
+taxaLevel = "genus"
 ```
 
 
@@ -91,19 +91,6 @@ suppressWarnings( dir.create(outDir, recursive = T) )
 ```
 
 Output will be saved to: ``r outDir``
-
-Function to display taxa names.
-```{r}
-displayTaxonName = function(name, level=NULL){
-    bits = unlist(strsplit(name, split="__"))
-    lastBit = bits[length(bits)]
-    if (!is.null(level)){
-        lastBit = paste(level, lastBit, sep=": ")
-    }
-    return(lastBit)
-}
-```
-
 
 # Main
 
@@ -189,6 +176,71 @@ lognorm <- function(table, log10.do = TRUE){
 }
 
 counts.norm = lognorm(counts)
+```
+
+### Shorten names
+
+Rename taxa in counts file.  These names are very long.  Give them shorter names that will be easy to read in tables and look nice in figures.
+
+Function to display taxa names.
+```{r}
+shortenTaxonName = function(name, level=NULL){
+    name2 = sub(".d__", "<<splitHere>>d__", name)
+    name2 = sub(".p__", "<<splitHere>>p__", name2)
+    name2 = sub(".c__", "<<splitHere>>c__", name2)
+    name2 = sub(".o__", "<<splitHere>>o__", name2)
+    name2 = sub(".f__", "<<splitHere>>f__", name2)
+    name2 = sub(".g__", "<<splitHere>>g__", name2)
+    name2 = sub(".s__", "<<splitHere>>s__", name2)
+    parts = unlist(strsplit(name2, split="<<splitHere>>", fixed=T))
+    bits = strsplit(parts, split="__")
+    levelName = sapply(bits, "[", 1)
+    taxaName = sapply(bits, "[", 2)
+    names(taxaName) = levelName
+    
+    lastBit = taxaName[length(taxaName)]
+    nextLastPart = parts[length(parts) - 1]
+    
+    if (is.na(lastBit) | lastBit == "." | lastBit == ""){
+        result = nextLastPart
+    }else if (lastBit == "uncultured_bacterium"){
+        result = paste0(nextLastPart, " (UB*)")
+    }else{
+        result = lastBit
+    }
+    
+    if (!is.null(level)){
+        result = paste(level, result, sep=": ")
+    }
+    return(result)
+}
+
+displayTaxonName <- function(name, level=NULL, maxchar=50){
+    if (!is.na(maxchar) & nchar(name) > maxchar){
+        ending = substr(name, start=nchar(name)-maxchar-2, stop=nchar(name))
+        name = paste0("...", ending)
+    }
+    if (!is.null(level)){
+        name = paste(level, name, sep=": ")
+    }
+    return(name)
+}
+```
+
+If the new names are not all unique, then append an arbitrary number to them.  Either way, save a key of original taxa names and shortened taxa names.
+```{r}
+originalName = colnames(counts.norm)
+
+shortName = sapply(originalName, shortenTaxonName)
+if (length(unique(shortName)) < ncol(counts.norm)){
+    shortName = paste0(shortName, "[", 1:ncol(counts.norm), "]")
+}
+colnames(counts.norm) = shortName
+
+write.table(data.frame(shortName=shortName, 
+                       originalName=originalName), 
+            file = file.path(outDir, "TaxonNameKey.txt"), 
+            quote=F, row.names=F, sep="\t")
 ```
 
 
@@ -330,19 +382,20 @@ constants = c("AGE", "DUR_ILLNESS_YRS", "DAYS_TREAT")
 ```
  
 ```{r}
-diffables =c("STAI_Y1", "STAI_Y2", "STAI_TOTAL", "PSS", "BMI", "Weight_kg")
+diffables =c("Weight_kg", "BMI", "STAI_Y1", "STAI_Y2", "STAI_TOTAL", "PSS")
 diffables
 ```
 
-We have previously calculated differences:
+We have previously calculated differences, and a couple other per-patient numerical features: T1.severity and BMI.gain.per.day.
 ```{r}
-deltas = names(diffs) %>% grep(pattern="diff", value = T)
+# deltas = names(diffs) %>% grep(pattern="diff", value = T)
+deltas = c("T1.severity", "Weight_kg.diff", "BMI.diff", "BMI.gain.per.day", "STAI_Y1.diff", "STAI_Y2.diff", "STAI_TOTAL.diff", "PSS.diff")
 deltas
 ```
 
 taxa
 ```{r}
-taxa = colnames(counts)
+taxa = colnames(counts.norm)
 ```
 
 We have ``r length(taxa)`` to test.
@@ -354,10 +407,23 @@ Compare the values for each taxon against each categorical feature. Use the 1-wa
 ```{r TaxaVsCategoryTest}
 TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.01, testType="anova", fileNameBase=NULL, minGroupSize=2){
     # testType - one of "anova" or "kruskal.test"
+    # taxa - a subset of columns representing taxonomic features
+    # variables - a different subset of columns
+    
+    # check args
+    if (length(setdiff(taxa, names(dataDF))) > 0) {
+        stop("Argument 'taxa' should be a subset of the column names of 'dataDF'.")
+    }
+    if (length(setdiff(variables, names(dataDF))) > 0) {
+        stop("Argument 'variables' should be a subset of the column names of 'dataDF'.")
+    }
     
     pvalTable = data.frame(matrix(data=NA, nrow=length(taxa), ncol=length(variables)))
     names(pvalTable) = variables
     row.names(pvalTable) = taxa
+    
+    # adjusted pvalues have the same layout
+    adjPvalTable = pvalTable
     
     message("p-values will be calculated based on the ", testType, " test.")
     saveToFile = !is.null(fileNameBase)
@@ -418,6 +484,7 @@ TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.0
         # adjustedPvals
         padj.method="fdr"
         adjustedPvals = p.adjust(variablePvals, method = padj.method)
+        adjPvalTable[,variable] = adjustedPvals
         
         # adjust based on all tests this is run of the function
         moreAdjustedPvals = p.adjust(variablePvals, method = padj.method, 
@@ -469,138 +536,67 @@ TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.0
     pvalCountTable[1,"adjPvalSig_nTests"] = sum(p.adjust(unlist(pvalTable), method = padj.method) <= redPval, na.rm=T)
     
     
-    # save p-value table
+    
     if (saveToFile){
+        # save p-value table
         table.file = paste0(fileNameBase, "_p-values.txt")
         message("Saving file: ", table.file)
-        write.table(file=table.file, pvalTable, sep="\t", quote=F, row.names = F)
-    }else{
-        pvalCountTable
-    }
-    
-    # show or save summary table
-    if (saveToFile){
+        write.table(file=table.file, 
+                    cbind(taxa=row.names(pvalTable), pvalTable), 
+                    sep="\t", quote=F, row.names = F)
+        
+        # save adj p-value table
+        table.file = paste0(fileNameBase, "_p-values_adjustedForNtaxa.txt")
+        message("Saving file: ", table.file)
+        write.table(file=table.file, 
+                    cbind(taxa=row.names(adjPvalTable), adjPvalTable), 
+                    sep="\t", quote=F, row.names = F)
+        
+        # save summary table
         table.file = paste0(fileNameBase, "_summary.txt")
         message("Saving file: ", table.file)
         write.table(file=table.file, pvalCountTable, sep="\t", quote=F, row.names = F)
-    }else{
-        pvalCountTable
     }
     
-    return(pvalTable)
+    return(list(p.values=pvalTable, adjPvals=adjPvalTable, summary=pvalCountTable))
 }
 ```
 
 ```{r runTaxaVsCategoryTest}
 # parametric test - anova
-acrossTimeTable = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC"), 
+acrossTimeTableList = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC"), 
                                      taxa, variables_acrossTime, 
                                      fileNameBase=file.path(outDir, "T1T2.anova"))
+acrossTimeTable = acrossTimeTableList$p.values
+
 # randomized.acrossTimeTable = TaxaVsCategoryTest(scrambled.data, taxa, variables_acrossTime, doPlot=F)
-anovaAtT1 = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "T2"), 
+
+anovaAtT1List = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "T2"), 
                                taxa, variables_byTime, 
                                fileNameBase=file.path(outDir, "HCT1_variables_byTime"))
-anovaAtT2 = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "T1"), 
+anovaAtT1 = anovaAtT1List$p.values
+
+anovaAtT2List = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "T1"), 
                                taxa, variables_byTime, 
                                fileNameBase=file.path(outDir, "HCT2_variables_byTime"))
-anovaAtHC = TaxaVsCategoryTest(data %>% filter(TIMEPOINT == "HC"), 
+anovaAtT2 = anovaAtT2List$p.values
+
+anovaAtHCList = TaxaVsCategoryTest(data %>% filter(TIMEPOINT == "HC"), 
                                taxa, "LOCATION", 
                                fileNameBase=file.path(outDir, "HC_Location"))
+anovaAtHC = anovaAtHCList$p.values
 
 # nonparametric test
-kwAcrossTime = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC"), taxa, variables_acrossTime, doPlot=F, testType = "kruskal.test")
+kwAcrossTime = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC"), 
+                                  taxa, variables_acrossTime, doPlot=F, testType = "kruskal.test")$p.values
 # randomized.kwAcrossTime = TaxaVsCategoryTest(scrambled.data, taxa, variables_acrossTime, doPlot=F, testType = "kruskal.test")
-kwAtT1 = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "T2"), taxa, variables_byTime, doPlot=F, testType = "kruskal.test")
-kwAtT2 = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "T1"), taxa, variables_byTime, doPlot=F, testType = "kruskal.test")
-kwAtHC = TaxaVsCategoryTest(data %>% filter(TIMEPOINT == "HC"), taxa, "LOCATION", doPlot=F, testType = "kruskal.test")
+kwAtT1 = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "T2"), 
+                            taxa, variables_byTime, doPlot=F, testType = "kruskal.test")$p.values
+kwAtT2 = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "T1"), 
+                            taxa, variables_byTime, doPlot=F, testType = "kruskal.test")$p.values
+kwAtHC = TaxaVsCategoryTest(data %>% filter(TIMEPOINT == "HC"), 
+                            taxa, "LOCATION", doPlot=F, testType = "kruskal.test")$p.values
 ```
-
-
-P-value histograms
-```{r pvalHistOld}
-# pvalHist = function(pvalTable, title="", pdfName=title, saveToFolder=outDir, taxalevel=taxaLevel){
-#     longTab = cbind(taxon=row.names(pvalTable), pvalTable) %>% 
-#         pivot_longer(cols=-taxon, names_to = "variable", values_to = "value")
-#     show(suppressMessages(
-#         ggplot(longTab, aes(x=value, fill=variable)) +
-#             geom_histogram() +
-#             ggtitle(paste(title,"(", taxalevel, ")"))
-#     ))
-#     if ( !is.null(saveToFolder) ){
-#         pdfName = file.path(outDir, paste0("pval-hist-", title,"-", taxalevel, ".pdf"))
-#         message(pdfName)
-#         pdf(pdfName, width=3, height = 3)
-#         for (column in names(pvalTable)){
-#             show(suppressMessages(
-#                 ggplot(data = data.frame(x=pvalTable[,column]), aes(x=x)) +
-#                     geom_histogram(fill="dodgerblue") +
-#                     xlab("p-values") +
-#                     ggtitle(column)  
-#             ))
-#         }
-#         dev.off()
-#     }
-#     
-# }
-
-# suppressWarnings({
-#     suppressMessages({
-#         pvalHist(acrossTimeTable, "ANOVA-acrossTime")
-#         pvalHist(anovaAtT1, "ANOVA-T1")
-#         pvalHist(anovaAtT2, "ANOVA-T2")
-#         pvalHist(anovaAtHC, "ANOVA-HC")
-#         
-#         pvalHist(kwAcrossTime, "Kruskal-Wallis-acrossTime")
-#         pvalHist(kwAtT1, "Kruskal-Wallis-T1")
-#         pvalHist(kwAtT2, "Kruskal-Wallis-T2")
-#         pvalHist(kwAtHC, "Kruskal-Wallis-HC")
-#     })
-# })
-```
-
-
-
-<!-- Merge to make one large heatmap. -->
-<!-- ```{r} -->
-<!-- appendName <- function(df, suffix){ -->
-<!--     names(df) = paste0(names(df), suffix) -->
-<!--     return(df) -->
-<!-- } -->
-<!-- mergeList = list( -->
-<!--     anovaAtT1 = appendName(anovaAtT1, ".HCT1.anova"), -->
-<!--     anovaAtT2 = appendName(anovaAtT2, ".HCT2.anova"), -->
-<!--     anovaAtHC = appendName(anovaAtHC, ".HC.anova"), -->
-<!--     acrossTimeTable = appendName(acrossTimeTable, ".T1T2.anova"), -->
-<!--     kwAcrossTime = appendName(kwAcrossTime, ".T1T2.Kruskal"), -->
-<!--     kwAtT1 = appendName(kwAtT1, ".HCT1.Kruskal"), -->
-<!--     kwAtT2 = appendName(kwAtT2, ".HCT2.Kruskal"), -->
-<!--     kwAtHC = appendName(kwAtHC, ".HC.Kruskal") -->
-<!--     ) -->
-
-<!-- # merge -->
-<!-- m.all.1 = data.frame(Row.names=taxa) -->
-<!-- for (df in mergeList){ -->
-<!--     m.all.1 = merge(m.all.1, df, by.x="Row.names", by.y=0) -->
-<!-- } -->
-
-<!-- # move row names -->
-<!-- row.names(m.all.1) = m.all.1$Row.names -->
-<!-- m.all.1 = m.all.1 %>% select(-Row.names) -->
-
-<!-- # sort columns -->
-<!-- m.all.1 = m.all.1[, order(names(m.all.1))] -->
-
-<!-- # heatmap -->
-<!-- # plot for file -->
-<!-- pvalHeatMap.categories.file = file.path(outDir, paste0("pval-heatmap-categories-", taxaLevel, ".pdf")) -->
-<!-- pdf(file=pvalHeatMap.categories.file, -->
-<!--     height = 3 + nrow(m.all.1) / 12, -->
-<!--     width = 5 + ncol(m.all.1) / 6) -->
-<!-- pvalTableToHeatMap(m.all.1, title="catogrical-features") -->
-<!-- dev.off() -->
-<!-- ``` -->
-
-<!-- See file ``r pvalHeatMap.categories.file``. -->
 
 
 ## binary tests - t-test
@@ -655,10 +651,14 @@ TaxaVsNumericTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.01
 ```{r runTaxaVsNumericTest}
 suppressWarnings({
     suppressMessages({
-        peAtT1 = TaxaVsNumericTest(data %>% filter(TIMEPOINT == "T1"), taxa, diffables, doPlot=F, testType = "pearson")
-        keAtT1 = TaxaVsNumericTest(data %>% filter(TIMEPOINT == "T1"), taxa, diffables, doPlot=F, testType = "kendall")
-        peAtT2 = TaxaVsNumericTest(data %>% filter(TIMEPOINT == "T2"), taxa, diffables, doPlot=F, testType = "pearson")
-        keAtT2 = TaxaVsNumericTest(data %>% filter(TIMEPOINT == "T2"), taxa, diffables, doPlot=F, testType = "kendall")
+        peAtT1 = TaxaVsNumericTest(data %>% filter(TIMEPOINT == "T1"), 
+                                   taxa, diffables, doPlot=F, testType = "pearson")
+        keAtT1 = TaxaVsNumericTest(data %>% filter(TIMEPOINT == "T1"), 
+                                   taxa, diffables, doPlot=F, testType = "kendall")
+        peAtT2 = TaxaVsNumericTest(data %>% filter(TIMEPOINT == "T2"), 
+                                   taxa, diffables, doPlot=F, testType = "pearson")
+        keAtT2 = TaxaVsNumericTest(data %>% filter(TIMEPOINT == "T2"), 
+                                   taxa, diffables, doPlot=F, testType = "kendall")
         peAtDif1 = TaxaVsNumericTest(diffData1, taxa, deltas, doPlot=F, testType = "pearson")
         keAtDif1 = TaxaVsNumericTest(diffData1, taxa, deltas, doPlot=F, testType = "kendall")
         peAtDif2 = TaxaVsNumericTest(diffData2, taxa, deltas, doPlot=F, testType = "pearson")
@@ -667,21 +667,7 @@ suppressWarnings({
 })
 ```
 
-pvalue histograms
-```{r}
-# suppressWarnings({
-#     suppressMessages({
-#         pvalHist(peAtT1, "Pearson-T1")
-#         pvalHist(keAtT1, "kendall-T1")
-#         pvalHist(peAtT2, "Pearson-T2")
-#         pvalHist(keAtT2, "kendall-T2")
-#         pvalHist(peAtDif1, "Pearson-diff")
-#         pvalHist(keAtDif1, "kendall-diff")
-#     })
-# })
-```
-
-## Test Summaries
+# Test Summaries
 
 ### Combine test results
 
@@ -716,15 +702,12 @@ m.all.1 = m.all.1 %>% select(-Row.names)
 
 # sort columns
 m.all.1 = m.all.1[, order(names(m.all.1))]
-
-# # heatmap
-# # plot for file
-# pvalHeatMap.categories.file = file.path(outDir, paste0("pval-heatmap-categories-", taxaLevel, ".pdf"))
-# pdf(file=pvalHeatMap.categories.file,
-#     height = 3 + nrow(m.all.1) / 12,
-#     width = 5 + ncol(m.all.1) / 6)
-# pvalTableToHeatMap(m.all.1, title="catogrical-features")
-# dev.off()
+# order groups of columns
+m.all.1 = m.all.1 %>% select(starts_with("PARTICIPANT.ID"),
+                             starts_with("HCvsAN"),
+                             starts_with("SUBTYPE.AN"),
+                             starts_with("TIMEPOINT"),
+                             starts_with("LOCATION"))
 ```
 
 
@@ -757,14 +740,33 @@ m.all.2 = m.all.2 %>% select(-Row.names)
 
 # sort columns
 m.all.2 = m.all.2[, order(names(m.all.2))]
+
+# order groups of columns
+m.all.2 = m.all.2 %>% select(starts_with("Weight_kg"),
+                             starts_with("BMI"),
+                             starts_with("PSS"),
+                             starts_with("STAI"))
 ```
 
 
 Merge into a single results table
 ```{r}
-m.all = cbind(m.all.1, m.all.2)
+m.all = merge(m.all.1, m.all.2, by=0)
+
+# move row names
+row.names(m.all) = m.all$Row.names
+m.all = m.all %>% select(-Row.names)
+
+# orderRows = order(apply(m.all, MARGIN = 1, function(row){
+#     sum(row < 0.05, na.rm=T)
+#     }), decreasing = T)
+orderRows = order(-log10(m.all$TIMEPOINT.HCT1.anova), decreasing = T)
+m.all = m.all[ orderRows, ]
 ```
 
+Save p-values. TODO
+```{r}
+```
 
 
 
@@ -772,17 +774,25 @@ m.all = cbind(m.all.1, m.all.2)
 
 Show the p-value table as a heat map.
 ```{r pvalHeat}
-pvalTableToHeatMap = function(pvalTable, midpointPval=0.05, bluePvalue=0.05, redPvalue=0.00001, title="-log10(p-values)", displayName.FUN=displayTaxonName){
+pvalTableToHeatMap = function(pvalTable, midpointPval=0.05, bluePvalue=0.05, redPvalue=0.00001, title="-log10(p-values)", displayName.FUN=c){
     # pvalTable - data frame of pvalues, with columns corresponding to variables (metadata) and named rows for taxa.
     # bluePval - pvalues worse than this will all be shown in blue.
     # midpointPval - these will be shown in white, as a middle point between the blue and red gradients.
     # all p-values better than this will be shown in solid red.
     pvalTable[pvalTable < redPvalue] = redPvalue
     pvalTable[pvalTable > bluePvalue] = bluePvalue
+    
+    taxon = sapply( row.names(pvalTable), displayName.FUN )
+    if (length(unique(taxon)) < nrow(pvalTable)){
+        taxon = paste0(taxon, "[", 1:nrow(pvalTable), "]")
+    }
+    row.names(pvalTable) = taxon
+    
     longTab = -log10(pvalTable) %>% 
-        mutate(taxon= sapply( row.names(pvalTable), displayName.FUN) ) %>%
+        mutate(taxon= row.names(pvalTable) ) %>%
         pivot_longer(cols=-taxon, names_to = "var", values_to="pval")
     longTab$var = factor(x=as.character(longTab$var), levels=names(pvalTable))
+    longTab$taxon = factor(x=as.character(longTab$taxon), levels=row.names(pvalTable))
     ggplot(longTab, aes(x=var, y=taxon, fill=pval)) +
         geom_tile(col="gray") +
         scale_fill_gradient2(low = "blue", high = "red", mid = "white",
@@ -802,55 +812,6 @@ pvalTableToHeatMap = function(pvalTable, midpointPval=0.05, bluePvalue=0.05, red
 ```
 
 
-
-
-
-
-```{r}
-# n.a1 = pvalTableToHeatMap(peAtT1, title="Pearson-T1")
-# n.a2 = pvalTableToHeatMap(keAtT1, title="kendall-T1")
-# n.b1 = pvalTableToHeatMap(peAtT2, title="Pearson-T2")
-# n.b2 = pvalTableToHeatMap(keAtT2, title="kendall-T2")
-# n.c1 = pvalTableToHeatMap(peAtDif1, title="Pearson-diff-T1bugs")
-# n.c2 = pvalTableToHeatMap(keAtDif1, title="kendall-diff-T1bugs")
-# n.d1 = pvalTableToHeatMap(peAtDif2, title="Pearson-diff-T2bugs")
-# n.d2 = pvalTableToHeatMap(keAtDif2, title="kendall-diff-T2bugs")
-# 
-# 
-# 
-# ggarrange(n.a1, n.a2, align="h", common.legend = T)
-# ggarrange(n.b1, n.b2, align="h", common.legend = T)
-# ggarrange(n.c1, n.c2, align="h", common.legend = T)
-```
-
-```{r}
-# ## Save ALL the heat-maps to a file.
-# 
-# pvalHeatMap.file = file.path(outDir, paste0("pval-heatmaps-", taxaLevel, ".pdf"))
-# pdf(file=pvalHeatMap.file,
-#     height = 2 + length(taxa) / 4,
-#     width = 5)
-# a1
-# a2
-# b1
-# b2
-# c1
-# c2
-# d1
-# d2
-# 
-# n.a1
-# n.a2
-# n.b1
-# n.b2
-# n.c1
-# n.c2
-# dev.off()
-
-## Heatmaps were saved to file: ``r pvalHeatMap.file``
-```
-
-
 Heat-map for categorical feature p-values.
 ```{r}
 pvalHeatMap.categories.file = file.path(outDir, paste0("pval-heatmap-categories-", taxaLevel, ".pdf"))
@@ -863,50 +824,20 @@ dev.off()
 
 Heat-map for numerical feature p-values.
 ```{r}
-# appendName <- function(df, suffix){
-#     names(df) = paste0(names(df), suffix)
-#     return(df)
-# }
-# mergeList.numeric = list(
-#     peAtT1 = appendName(peAtT1, ".T1.pearson"),
-#     keAtT1 = appendName(keAtT1, ".T1.kendall"),
-#     peAtT2 = appendName(peAtT2, ".T2.pearson"),
-#     keAtT2 = appendName(keAtT2, ".T2.kendall"),
-#     peAtDif1 = appendName(peAtDif1, ".T1.pearson"),
-#     keAtDif1 = appendName(keAtDif1, ".T1.kendall"),
-#     peAtDif2 = appendName(peAtDif2, ".T2.pearson"),
-#     keAtDif2 = appendName(keAtDif2, ".T2.kendall")
-#     )
-# 
-# # merge
-# m.all.2 = data.frame(Row.names=taxa)
-# for (df in mergeList.numeric){
-#     m.all.2 = merge(m.all.2, df, by.x="Row.names", by.y=0)
-# }
-# 
-# # move row names
-# row.names(m.all.2) = m.all.2$Row.names
-# m.all.2 = m.all.2 %>% select(-Row.names)
-# 
-# # sort columns
-# m.all.2 = m.all.2[, order(names(m.all.2))]
-
-# heatmap
-# plot for file
 pvalHeatMap.numeric.file = file.path(outDir, paste0("pval-heatmap-numeric-", taxaLevel, ".pdf"))
 pdf(file=pvalHeatMap.numeric.file,
     height = 3 + nrow(m.all.2) / 12,
     width = 5 + ncol(m.all.2) / 6)
-pvalTableToHeatMap(m.all.2, title="numeric-features")
+pvalTableToHeatMap(m.all.2, title="numeric-features", displayName.FUN=function(input){return(input)})
 dev.off()
 ```
 
 
 Merge the two heatmaps: the big heatmap
 ```{r}
-pvalHeatMap.categories.file = file.path(outDir, paste0("pval-heatmap-all-", taxaLevel, ".pdf"))
+pvalHeatMap.categories.file = file.path(outDir, paste0("bigHeatmap_", taxaLevel, ".pdf"))
 pdf(file=pvalHeatMap.categories.file,
-    height = 3 + nrow(m.all) / 12,
+    height = 3 + nrow(m.all) / 6,
     width = 5 + ncol(m.all) / 6)
 pvalTableToHeatMap(m.all, title="the big heatmap")
 dev.off()
@@ -946,6 +877,20 @@ pvalHist = function(pvalTable, title="", pdfName=title, saveToFolder=outDir, tax
 
 ```{r}
 pvalHist(m.all)
+```
+
+As a convenience, stack all of the summary tables that we made along the way into one table.
+```{r}
+summaryFiles = dir(path=outDir, pattern="summary.txt", full.names = T)
+summaries = lapply(summaryFiles, function(file){
+    df = read.delim(file)
+    df$testSet = file
+    df = df[df$variable != "TOTAL", ]
+    return(df)
+})
+bigSummary = do.call(rbind, summaries)
+
+write.table(bigSummary, file=file.path(outDir, "bigSummary.txt"), quote=F, row.names=F, sep="\t")
 ```
 
 
