@@ -8,6 +8,7 @@ output:
 ---
 
 ```{r include=FALSE}
+knitr::knit_hooks$set(purl = knitr::hook_purl, documentation=2L)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -80,7 +81,7 @@ theme_set(theme_classic())
 
 Pick a taxonomic level.
 ```{r}
-taxaLevel = "genus"
+taxaLevel = "family"
 ```
 
 
@@ -237,8 +238,10 @@ if (length(unique(shortName)) < ncol(counts.norm)){
 }
 colnames(counts.norm) = shortName
 
-write.table(data.frame(shortName=shortName, 
-                       originalName=originalName), 
+nameKey = data.frame(shortName=shortName, 
+                       originalName=originalName)
+
+write.table(nameKey, 
             file = file.path(outDir, "TaxonNameKey.txt"), 
             quote=F, row.names=F, sep="\t")
 ```
@@ -405,7 +408,7 @@ We have ``r length(taxa)`` to test.
 Compare the values for each taxon against each categorical feature. Use the 1-way-anova and the Kruskal test.
 
 ```{r TaxaVsCategoryTest}
-TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.01, testType="anova", fileNameBase=NULL, minGroupSize=2){
+TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.05, testType="anova", fileNameBase=NULL, minGroupSize=2){
     # testType - one of "anova" or "kruskal.test"
     # taxa - a subset of columns representing taxonomic features
     # variables - a different subset of columns
@@ -432,11 +435,8 @@ TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.0
                                 testType=testType,
                                 nVals=NA,
                                 levels=NA,
-                                attemptedTests=length(taxa) * length(variables),
                                 testWithPvalue=NA,
-                                rawPvalSig=NA,
-                                adjPvalSig_nTaxa=NA,
-                                adjPvalSig_nTests=NA)
+                                rawPvalSig=NA)
     
     for (variable in variables){
         variablePlotList = list()
@@ -486,10 +486,6 @@ TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.0
         adjustedPvals = p.adjust(variablePvals, method = padj.method)
         adjPvalTable[,variable] = adjustedPvals
         
-        # adjust based on all tests this is run of the function
-        moreAdjustedPvals = p.adjust(variablePvals, method = padj.method, 
-                                     n=length(taxa) * length(variables))
-        
         # add row to summary table
         pvalCountTable = rbind(pvalCountTable, 
                                c(
@@ -497,11 +493,8 @@ TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.0
                                    testType=testType,
                                    nVals=sum(!is.na(xAxis)),
                                    levels=paste0(unique(xAxis), collapse=","),
-                                   attemptedTests=length(taxa),
                                    testWithPvalue=sum(!is.na(variablePvals)),
-                                   rawPvalSig=sum(variablePvals <= redPval, na.rm=T),
-                                   adjPvalSig_nTaxa=sum(adjustedPvals <= redPval, na.rm=T),
-                                   adjPvalSig_nTests=sum(moreAdjustedPvals <= redPval, na.rm=T)
+                                   rawPvalSig=sum(variablePvals <= redPval, na.rm=T)
                                ) 
         )
         
@@ -527,75 +520,49 @@ TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.0
             }
         }
         
-        
     }# variable for-loop
     
-    # Add totals to summary table
-    pvalCountTable[1,"testWithPvalue"] = sum(!is.na(pvalTable))
-    pvalCountTable[1,"rawPvalSig"] = sum(pvalTable <= redPval, na.rm=T)
-    pvalCountTable[1,"adjPvalSig_nTests"] = sum(p.adjust(unlist(pvalTable), method = padj.method) <= redPval, na.rm=T)
-    
-    
-    
     if (saveToFile){
-        # save p-value table
-        table.file = paste0(fileNameBase, "_p-values.txt")
-        message("Saving file: ", table.file)
-        write.table(file=table.file, 
-                    cbind(taxa=row.names(pvalTable), pvalTable), 
-                    sep="\t", quote=F, row.names = F)
-        
-        # save adj p-value table
-        table.file = paste0(fileNameBase, "_p-values_adjustedForNtaxa.txt")
-        message("Saving file: ", table.file)
-        write.table(file=table.file, 
-                    cbind(taxa=row.names(adjPvalTable), adjPvalTable), 
-                    sep="\t", quote=F, row.names = F)
-        
         # save summary table
         table.file = paste0(fileNameBase, "_summary.txt")
         message("Saving file: ", table.file)
         write.table(file=table.file, pvalCountTable, sep="\t", quote=F, row.names = F)
     }
     
-    return(list(p.values=pvalTable, adjPvals=adjPvalTable, summary=pvalCountTable))
+    return(pvalTable)
 }
 ```
 
 ```{r runTaxaVsCategoryTest}
 # parametric test - anova
-acrossTimeTableList = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC"), 
+acrossTimeTable = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC"), 
                                      taxa, variables_acrossTime, 
                                      fileNameBase=file.path(outDir, "T1T2.anova"))
-acrossTimeTable = acrossTimeTableList$p.values
 
 # randomized.acrossTimeTable = TaxaVsCategoryTest(scrambled.data, taxa, variables_acrossTime, doPlot=F)
 
-anovaAtT1List = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "T2"), 
+anovaAtT1 = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "T2"), 
                                taxa, variables_byTime, 
-                               fileNameBase=file.path(outDir, "HCT1_variables_byTime"))
-anovaAtT1 = anovaAtT1List$p.values
+                               fileNameBase=file.path(outDir, "HCT1.anova"))
 
-anovaAtT2List = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "T1"), 
+anovaAtT2 = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "T1"), 
                                taxa, variables_byTime, 
-                               fileNameBase=file.path(outDir, "HCT2_variables_byTime"))
-anovaAtT2 = anovaAtT2List$p.values
+                               fileNameBase=file.path(outDir, "HCT2.anova"))
 
-anovaAtHCList = TaxaVsCategoryTest(data %>% filter(TIMEPOINT == "HC"), 
+anovaAtHC = TaxaVsCategoryTest(data %>% filter(TIMEPOINT == "HC"), 
                                taxa, "LOCATION", 
-                               fileNameBase=file.path(outDir, "HC_Location"))
-anovaAtHC = anovaAtHCList$p.values
+                               fileNameBase=file.path(outDir, "HC.anova"))
 
 # nonparametric test
 kwAcrossTime = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC"), 
-                                  taxa, variables_acrossTime, doPlot=F, testType = "kruskal.test")$p.values
+                                  taxa, variables_acrossTime, doPlot=F, testType = "kruskal.test")
 # randomized.kwAcrossTime = TaxaVsCategoryTest(scrambled.data, taxa, variables_acrossTime, doPlot=F, testType = "kruskal.test")
 kwAtT1 = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "T2"), 
-                            taxa, variables_byTime, doPlot=F, testType = "kruskal.test")$p.values
+                            taxa, variables_byTime, doPlot=F, testType = "kruskal.test")
 kwAtT2 = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "T1"), 
-                            taxa, variables_byTime, doPlot=F, testType = "kruskal.test")$p.values
+                            taxa, variables_byTime, doPlot=F, testType = "kruskal.test")
 kwAtHC = TaxaVsCategoryTest(data %>% filter(TIMEPOINT == "HC"), 
-                            taxa, "LOCATION", doPlot=F, testType = "kruskal.test")$p.values
+                            taxa, "LOCATION", doPlot=F, testType = "kruskal.test")
 ```
 
 
@@ -608,16 +575,42 @@ This is basically the same as the anova test with two categories, so we my not b
 Compare the values for each taxon against each numeric feature.
 
 ```{r TaxaVsNumericTest}
-TaxaVsNumericTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.01, testType="pearson"){
+TaxaVsNumericTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.05, testType="pearson", fileNameBase=NULL){
     # testType - one of "pearson" or "kendall"
+    # taxa - a subset of columns representing taxonomic features
+    # variables - a different subset of columns
+    
+    # check args
+    if (length(setdiff(taxa, names(dataDF))) > 0) {
+        stop("Argument 'taxa' should be a subset of the column names of 'dataDF'.")
+    }
+    if (length(setdiff(variables, names(dataDF))) > 0) {
+        stop("Argument 'variables' should be a subset of the column names of 'dataDF'.")
+    }
     
     pvalTable = data.frame(matrix(data=NA, nrow=length(taxa), ncol=length(variables)))
     names(pvalTable) = variables
     row.names(pvalTable) = taxa
     
+    # adjusted pvalues have the same layout
+    adjPvalTable = pvalTable
+    
     message("p-values will be calculated based on the ", testType, " test.")
+    saveToFile = !is.null(fileNameBase)
+    
+    pvalCountTable = data.frame(variable="TOTAL",
+                                testType=testType,
+                                nVals=NA,
+                                levels=NA,
+                                testWithPvalue=NA,
+                                rawPvalSig=NA)
     
     for (variable in variables){
+        variablePlotList = list()
+        variablePvals = c()
+        
+        xAxis = dataDF[, variable]
+        
         for (taxon in taxa){
             taxonVals = dataDF[,taxon]
             # message("Testing variable ", variable, " against taxon ", taxon, "...")
@@ -630,6 +623,7 @@ TaxaVsNumericTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.01
             }
             
             pvalTable[taxon, variable] = pval
+            variablePvals[taxon] = pval
             
             if (doPlot){
                 plotdf = data.frame(x=dataDF[,variable], y=dataDF[,taxon], LOCATION=dataDF$LOCATION)
@@ -640,19 +634,69 @@ TaxaVsNumericTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.01
                     scale_colour_manual(variable, values = myColorPalette) +
                     ggtitle( paste0("p-value: ", signif(pval, 5)) ) +
                     theme(plot.title = element_text(colour = ifelse(pval<=redPval, "red", "black"))) 
-                show(gplot)
+                variablePlotList[[taxon]] = gplot
+            }
+        }# taxon for loop
+        
+        
+        # adjustedPvals
+        padj.method="fdr"
+        adjustedPvals = p.adjust(variablePvals, method = padj.method)
+        adjPvalTable[,variable] = adjustedPvals
+        
+        # add row to summary table
+        pvalCountTable = rbind(pvalCountTable, 
+                               c(
+                                   variable=variable,
+                                   testType=testType,
+                                   nVals=sum(!is.na(xAxis)),
+                                   levels=paste0("min: ", min(xAxis, na.rm=T), "; mean: ", mean(xAxis, na.rm=T), "; median: ", median(xAxis, na.rm=T), "; max: ", max(xAxis, na.rm=T)),
+                                   testWithPvalue=sum(!is.na(variablePvals)),
+                                   rawPvalSig=sum(variablePvals <= redPval, na.rm=T)
+                               ) 
+        )
+        
+        
+        if (doPlot){
+            ord = order(variablePvals)
+            if(saveToFile) {
+                pdfname = paste0(fileNameBase, "_plots_", variable, ".pdf")
+                pdf(pdfname)
+                message("Saving file: ", pdfname)
+            }
+            for (i in ord){
+                annotColor = ifelse(adjustedPvals[i] <= redPval, "red", "black")
+                annotText = paste0(padj.method, "-adjusted p-value: ", signif(adjustedPvals[i], 5))
+                show(
+                    variablePlotList[[i]] +
+                        annotate(geom="text", label=annotText, col=annotColor,
+                                 x=Inf, y=Inf, hjust="inward", vjust="inward")
+                )
+            }
+            if(saveToFile) {
+                dev.off()
             }
         }
+        
+    }# variable for-loop
+    
+    if (saveToFile){
+        # save summary table
+        table.file = paste0(fileNameBase, "_summary.txt")
+        message("Saving file: ", table.file)
+        write.table(file=table.file, pvalCountTable, sep="\t", quote=F, row.names = F)
     }
     
     return(pvalTable)
 }
 ```
+
 ```{r runTaxaVsNumericTest}
 suppressWarnings({
     suppressMessages({
         peAtT1 = TaxaVsNumericTest(data %>% filter(TIMEPOINT == "T1"), 
-                                   taxa, diffables, doPlot=F, testType = "pearson")
+                                   taxa, diffables, doPlot=T, testType = "pearson",
+                                   fileNameBase = file.path(outDir, "T1.pearson"))
         keAtT1 = TaxaVsNumericTest(data %>% filter(TIMEPOINT == "T1"), 
                                    taxa, diffables, doPlot=F, testType = "kendall")
         peAtT2 = TaxaVsNumericTest(data %>% filter(TIMEPOINT == "T2"), 
@@ -764,10 +808,71 @@ orderRows = order(-log10(m.all$TIMEPOINT.HCT1.anova), decreasing = T)
 m.all = m.all[ orderRows, ]
 ```
 
-Save p-values. TODO
+### Save tables
+
+Save p-values. Keep the row order specified above, but add the full names of taxa as an extra column.
 ```{r}
+row.names(nameKey) = nameKey$shortName
+m.all.labeled = cbind(taxon.originalName=nameKey[row.names(m.all),"originalName"], 
+                      taxon=row.names(m.all),
+                      m.all)
+
+write.table(m.all.labeled, file = file.path(outDir, "bigList_pvalues_raw.txt"),
+            row.names=F, quote=F, sep="\t")
 ```
 
+Adjust p-values within each column, and save that table.  Add on the full taxon names, and keep row order.
+```{r}
+# m.all.adj = apply(m.all, MARGIN = 2, FUN=p.adjust, method="fdr")
+m.all.adj = m.all
+for( test in names(m.all)){
+    m.all.adj[,test] = p.adjust(m.all[,test], method = "fdr")
+}
+
+row.names(nameKey) = nameKey$shortName
+m.all.adj.labeled = cbind(taxon.originalName=nameKey[row.names(m.all.adj),"originalName"], 
+                      taxon=row.names(m.all.adj),
+                      m.all.adj)
+
+write.table(m.all.adj.labeled, file = file.path(outDir, "bigList_pvalues_fdr-adjusted.txt"),
+            row.names=F, quote=F, sep="\t")
+```
+
+Build a summary table for each variable tested:
+
+  * How many tests have non-NA p-values?
+  * How many raw p-values are significant?
+  * How many are significant after adjusting for the number of taxa.
+```{r}
+summary = data.frame(testName="TOTAL",
+                     attemptedTests=NA,
+                     testWithPvalue=NA,
+                     rawPvalSig=NA,
+                     adjPvalSig_nTaxa=NA,
+                     adjPvalSig_nTests=NA)
+
+signifP = 0.05
+for (testName in names(m.all)){
+    # add row to summary table
+    variablePvals = m.all[,testName]
+    adjustedPvals = p.adjust(variablePvals, method="fdr")
+    very.adjustedPvals = p.adjust(variablePvals, method="fdr", n = nrow(m.all) * ncol(m.all))
+    summary = rbind(summary, 
+                           c(
+                               testName=testName,
+                               attemptedTests=length(variablePvals),
+                               testWithPvalue=sum(!is.na(variablePvals)),
+                               rawPvalSig=sum(variablePvals <= signifP, na.rm=T),
+                               adjPvalSig_nTaxa=sum(adjustedPvals <= signifP, na.rm=T),
+                               adjPvalSig_nTests=sum(very.adjustedPvals <= signifP, na.rm=T)
+                           ) 
+    )
+}
+summary = summary %>% filter(testName != "TOTAL")
+
+write.table(summary, file = file.path(outDir, "bigList_summary.txt"),
+            row.names=F, quote=F, sep="\t")
+```
 
 
 ### pvalue heat map
@@ -814,51 +919,60 @@ pvalTableToHeatMap = function(pvalTable, midpointPval=0.05, bluePvalue=0.05, red
 
 Heat-map for categorical feature p-values.
 ```{r}
-pvalHeatMap.categories.file = file.path(outDir, paste0("pval-heatmap-categories-", taxaLevel, ".pdf"))
+pvalHeatMap.categories.file = file.path(outDir, paste0("heatmap_categoricalFeatures_raw-p-values_", taxaLevel, ".pdf"))
 pdf(file=pvalHeatMap.categories.file,
     height = 3 + nrow(m.all.1) / 12,
     width = 5 + ncol(m.all.1) / 6)
-pvalTableToHeatMap(m.all.1, title="catogrical-features")
+pvalTableToHeatMap(m.all.1, title="catogrical-features raw p-values")
 dev.off()
 ```
 
 Heat-map for numerical feature p-values.
 ```{r}
-pvalHeatMap.numeric.file = file.path(outDir, paste0("pval-heatmap-numeric-", taxaLevel, ".pdf"))
+pvalHeatMap.numeric.file = file.path(outDir, paste0("heatmap_numericFeatures_raw-p-values_", taxaLevel, ".pdf"))
 pdf(file=pvalHeatMap.numeric.file,
     height = 3 + nrow(m.all.2) / 12,
     width = 5 + ncol(m.all.2) / 6)
-pvalTableToHeatMap(m.all.2, title="numeric-features", displayName.FUN=function(input){return(input)})
+pvalTableToHeatMap(m.all.2, title="numeric-features raw p-values", displayName.FUN=function(input){return(input)})
 dev.off()
 ```
 
 
-Merge the two heatmaps: the big heatmap
+Save a single large heatmap with all raw p-values
 ```{r}
-pvalHeatMap.categories.file = file.path(outDir, paste0("bigHeatmap_", taxaLevel, ".pdf"))
-pdf(file=pvalHeatMap.categories.file,
+pvalHeatMap.big.file = file.path(outDir, paste0("bigList_heatmap_raw-p-values_", taxaLevel, ".pdf"))
+pdf(file=pvalHeatMap.big.file,
     height = 3 + nrow(m.all) / 6,
     width = 5 + ncol(m.all) / 6)
-pvalTableToHeatMap(m.all, title="the big heatmap")
+pvalTableToHeatMap(m.all, title="the big heatmap - raw p-values")
 dev.off()
 ```
 
+Save a single large heatmap with all ajdusted p-values
+```{r}
+pvalHeatMap.big.adj.file = file.path(outDir, paste0("bigList_heatmap_fdr.adj-p-values_", taxaLevel, ".pdf"))
+pdf(file=pvalHeatMap.big.adj.file,
+    height = 3 + nrow(m.all) / 6,
+    width = 5 + ncol(m.all) / 6)
+pvalTableToHeatMap(m.all.adj, title="the big heatmap - fdr-adjusted p-values")
+dev.off()
+```
 
 ### p-value histograms
 
-Draw pvalue histograms for all variables.
+Draw p-value histograms for all variables.
 ```{r}
 pvalHist = function(pvalTable, title="", pdfName=title, saveToFolder=outDir, taxalevel=taxaLevel){
     longTab = cbind(taxon=row.names(pvalTable), pvalTable) %>% 
         pivot_longer(cols=-taxon, names_to = "variable", values_to = "value")
-    show(suppressMessages(
-        ggplot(longTab, aes(x=value, fill=variable)) +
-            geom_histogram() +
-            ggtitle(paste(title,"(", taxalevel, ")"))
-    ))
+    # show(suppressMessages(
+    #     ggplot(longTab, aes(x=value, fill=variable)) +
+    #         geom_histogram() +
+    #         ggtitle(paste(title,"(", taxalevel, ")"))
+    # ))
     if ( !is.null(saveToFolder) ){
-        pdfName = file.path(outDir, paste0("pval-hist-", title,"-", taxalevel, ".pdf"))
-        message(pdfName)
+        pdfName = file.path(outDir, paste0(title, "_pval-hist-", taxalevel, ".pdf"))
+        message("Saving file: ", pdfName)
         pdf(pdfName, width=3, height = 3)
         for (column in names(pvalTable)){
             show(suppressMessages(
@@ -876,23 +990,8 @@ pvalHist = function(pvalTable, title="", pdfName=title, saveToFolder=outDir, tax
 
 
 ```{r}
-pvalHist(m.all)
+pvalHist(m.all, "bigList")
 ```
-
-As a convenience, stack all of the summary tables that we made along the way into one table.
-```{r}
-summaryFiles = dir(path=outDir, pattern="summary.txt", full.names = T)
-summaries = lapply(summaryFiles, function(file){
-    df = read.delim(file)
-    df$testSet = file
-    df = df[df$variable != "TOTAL", ]
-    return(df)
-})
-bigSummary = do.call(rbind, summaries)
-
-write.table(bigSummary, file=file.path(outDir, "bigSummary.txt"), quote=F, row.names=F, sep="\t")
-```
-
 
 ```{r}
 sessionInfo()
