@@ -29,8 +29,6 @@ library(tidyr); tellme("tidyr")
 suppressPackageStartupMessages(library(dplyr)); tellme("dplyr")
 library(ggplot2); tellme("ggplot2")
 library(ggrepel); tellme("ggrepel")
-library(ggrepel); tellme("phyloseq")
-library(ggpubr); tellme("ggpubr")
 
 #' ### Colors
 #' 
