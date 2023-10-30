@@ -1,3 +1,3 @@
 
-biolockj --blj_proj ../results anigma_stress.config
+biolockj --blj_proj ../../results anigma_stress.config
 
