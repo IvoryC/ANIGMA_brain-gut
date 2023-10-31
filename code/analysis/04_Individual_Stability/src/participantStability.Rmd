@@ -662,7 +662,7 @@ for (pID in poorCor){
 }
 ```
 
-In some cases (participant 469024 and 469034), it looks like there IS a sample that is actually a much better match than the rest. I am inclined to think that 469024 and 469034 got switched at one time point.
+In some cases (participant 469024 and 469034), it looks like there IS a sample that is actually a much better match than the rest. I am inclined to think that 469024 and 469034 got switched at one time point. ---actually, we beleive there may have been a label mistake, and we have corrected it. And now those points are not in the poor matches set.
 
 In other cases, I don't see any better candidate, it just looks like the T1 to T2 pairing we have is not ... very much of a match.
 
@@ -850,7 +850,7 @@ correlationTableToHeatMap(cor.co.t2,
 # 469024 and 469034
 The team review notes from the wet lab about sample processing batches and the plots here.  Seeing: 
 
- * the reciprocal best match nature of the 469024 T1 sample to the 469034 T2 sammple, and 469034 T1 to 469024 T2, and
+ * the reciprocal best match nature of the 469024 T1 sample to the 469034 T2 sample, and 469034 T1 to 469024 T2, and
  * the two T1 samples (but not the two T2 samples) were next to each other in processing, and had consecutive DNA.id values and barcodes.
  
 This leads us to think that the two T1 samples were switched. The two T2 samples and the meta data are appropriate.  And the best fix is to edit the barcode/dna.id fields in the meta data.
@@ -862,7 +862,7 @@ maybeSwapped = meta %>%
 maybeSwapped
 ```
 
-Show heatmap with just these four samples vs all samples. Show these four first.
+Show heatmap with just these four samples.
 ```{r}
 dnaIDs = maybeSwapped$DNA.ID
 correlationTableToHeatMap(cor.co[dnaIDs, dnaIDs],
@@ -870,6 +870,7 @@ correlationTableToHeatMap(cor.co[dnaIDs, dnaIDs],
 ```
 
 It looks like 251 and 231 go together. And 47 and 252 go together.
+In an earlier version of the metadata file, participant 469024 had samples T1=251 and T2=47. 469034 had T1=252 and T2=231.  
 
 All other samples are less good matches to any of these four.
 ```{r fig.width=4, fig.height=12, include=FALSE}
@@ -887,9 +888,12 @@ cor.co %>%
     pivot_longer(cols=-other, names_to = "sample", values_to = "correlation") %>%
     ggplot(aes(x=sample, y=correlation, label=other, col=other)) + 
     scale_colour_manual(values=my4sampmlePalette) +
-    geom_jitter(width = .1, height = 0) 
+    geom_jitter(width = .1, height = 0) +
+    labs(title = "469024 and 469034",
+         caption = "Upon review of this data,\n we decided that DNA.ID 231 most likley belongs with 251, not 47.\nAnd that 252 goes with 47, not 251.")
 # +
 #     geom_text_repel(show.legend = F)
+ggsave(filename = file.path(outDir, "ids-469024-and-469034.png"), device = "png", width = 5, height = 4)
 ```
 
 
