@@ -138,7 +138,7 @@ if (any(countsAndMeta$Person != "Kylie")){
 # No real need to save this.
 
 # qzaMeta = countsAndMetaALL %>% select(id.orig, StudyID, Timepoint, Person)
-# write.table(qzaMeta, file=file.path(outDir, paste(taxaLevel, "_artifact_metatdata.txt")), 
+# write.table(qzaMeta, file=file.path(outDir, paste0(taxaLevel, "_artifact_metatdata.txt")), 
 #             quote=F, sep="\t", row.names = F)
 ```
 
@@ -293,6 +293,12 @@ meta$SUBTYPE.AN = meta$SUBTYPE
 meta$SUBTYPE.AN[meta$SUBTYPE.AN=="HC"] = NA
 ```
 
+The anorexia signal is what we would see by comparing T1 to HC or T2 to HC, which is the "TIMEPOINT" variable. Lets call it the ANOREXIA variable so that its clearer in the summaries.
+```{r}
+meta$ANOREXIA = meta$TIMEPOINT
+```
+
+
 ### Previous feature engineering
 
 Read the diffs metadata - data where diffs have been calculated.
@@ -362,7 +368,7 @@ variables_acrossTime
 ```
 Handle by time: T1 (HC and T1) or T2 (HC and T2)
 ```{r}
-variables_byTime = c("LOCATION", "TIMEPOINT", "SUBTYPE.AN")
+variables_byTime = c("LOCATION", "ANOREXIA", "SUBTYPE.AN")
 variables_byTime
 ```
 
@@ -448,7 +454,7 @@ TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.0
         
         xAxis = dataDF[, variable]
         
-        # if any category only has one sample, omit that category.
+        # if any category only has one sample (or fewer than minGroupSize), omit that category.
         tooFew = names(which(table(xAxis) < minGroupSize))
         if (length(tooFew) > 0){
             xAxis[xAxis %in% tooFew] = NA
@@ -470,7 +476,7 @@ TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.0
             variablePvals[taxon] = pval
             
             if (doPlot){
-                plotdf = data.frame(x=dataDF[,variable], y=dataDF[,taxon], TIMEPOINT=dataDF$TIMEPOINT)
+                plotdf = data.frame(x=xAxis, y=dataDF[,taxon], TIMEPOINT=dataDF$TIMEPOINT)
                 gplot = ggplot(data=plotdf, aes(x=x, y=y, col=x)) +
                     xlab(variable) +
                     ylab(displayTaxonName(taxon, taxaLevel)) +
@@ -546,11 +552,11 @@ acrossTimeTable = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC"),
 # randomized.acrossTimeTable = TaxaVsCategoryTest(scrambled.data, taxa, variables_acrossTime, doPlot=F)
 
 anovaAtT1 = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "T2"), 
-                               taxa, variables_byTime, 
+                               taxa, variables_byTime, minGroupSize = 5,
                                fileNameBase=file.path(outDir, "HCT1.anova"))
 
 anovaAtT2 = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "T1"), 
-                               taxa, variables_byTime, 
+                               taxa, variables_byTime, minGroupSize = 5, 
                                fileNameBase=file.path(outDir, "HCT2.anova"))
 
 anovaAtHC = TaxaVsCategoryTest(data %>% filter(TIMEPOINT == "HC"), 
@@ -754,7 +760,7 @@ m.all.1 = m.all.1[, order(names(m.all.1))]
 m.all.1 = m.all.1 %>% select(starts_with("PARTICIPANT.ID"),
                              starts_with("HCvsAN"),
                              starts_with("SUBTYPE.AN"),
-                             starts_with("TIMEPOINT"),
+                             starts_with("ANOREXIA"),
                              starts_with("LOCATION"))
 ```
 
@@ -808,7 +814,7 @@ m.all = m.all %>% select(-Row.names)
 # orderRows = order(apply(m.all, MARGIN = 1, function(row){
 #     sum(row < 0.05, na.rm=T)
 #     }), decreasing = T)
-orderRows = order(-log10(m.all$TIMEPOINT.HCT1.anova), decreasing = T)
+orderRows = order(-log10(m.all$ANOREXIA.HCT1.anova), decreasing = T)
 m.all = m.all[ orderRows, ]
 ```
 
@@ -838,7 +844,7 @@ m.all.adj.labeled = cbind(taxon.originalName=nameKey[row.names(m.all.adj),"origi
                       taxon=row.names(m.all.adj),
                       m.all.adj)
 
-write.table(m.all.adj.labeled, file = file.path(outDir, paste("bigList_pvalues_fdr-adjusted_", taxaLevel, ".txt")),
+write.table(m.all.adj.labeled, file = file.path(outDir, paste0("bigList_pvalues_fdr-adjusted_", taxaLevel, ".txt")),
             row.names=F, quote=F, sep="\t")
 ```
 
@@ -874,7 +880,7 @@ for (testName in names(m.all)){
 }
 summary = summary %>% filter(testName != "TOTAL")
 
-write.table(summary, file = file.path(outDir, paste("bigList_summary_", taxaLevel, ".txt")),
+write.table(summary, file = file.path(outDir, paste0("bigList_summary_", taxaLevel, ".txt")),
             row.names=F, quote=F, sep="\t")
 ```
 
@@ -908,7 +914,7 @@ pvalTableToHeatMap = function(pvalTable, midpointPval=0.05, bluePvalue=0.05, red
                              midpoint = -log10(midpointPval),
                              limit = c(-log10(bluePvalue),-log10(redPvalue)),
                              space = "Lab",
-                             name=paste("p-value threshold: ", midpointPval, "\n\n-log10(p-value)"),
+                             name=paste0("p-value threshold: ", midpointPval, "\n\n-log10(p-value)"),
                              na.value = gray(.9)) +
         theme_minimal()+ # minimal theme
         ggtitle(title) +
@@ -972,7 +978,7 @@ pvalHist = function(pvalTable, title="", pdfName=title, saveToFolder=outDir, tax
     # show(suppressMessages(
     #     ggplot(longTab, aes(x=value, fill=variable)) +
     #         geom_histogram() +
-    #         ggtitle(paste(title,"(", taxalevel, ")"))
+    #         ggtitle(paste0(title,"(", taxalevel, ")"))
     # ))
     if ( !is.null(saveToFolder) ){
         pdfName = file.path(outDir, paste0(title, "_pval-hist-", taxalevel, ".pdf"))
