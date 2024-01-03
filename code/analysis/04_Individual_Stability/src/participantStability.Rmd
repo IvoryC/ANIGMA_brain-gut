@@ -283,7 +283,7 @@ data$PARTICIPANT.ID = as.character(data$PARTICIPANT.ID)
 
 All sample correlations.
 ```{r cor.co}
-cor.co = cor(t(counts.norm), use="pairwise.complete.obs", method = "pearson") %>%
+cor.co = cor(t(counts.norm), use="pairwise.complete.obs", method = "spearman") %>%
     as.data.frame()
 ```
 
