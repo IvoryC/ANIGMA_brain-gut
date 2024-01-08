@@ -6,7 +6,7 @@ date: "2023-09-15"
 
 ```{r setup, include=FALSE}
 # I prefer to edit the Rmd file and then use purl to convert into a R script.
-# knitr::purl(input=dir(pattern="Rmd"), documentation = 2L)
+# knitr::purl(input=dir(pattern="Diversity_Metrics.Rmd"), documentation = 2L)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -183,32 +183,9 @@ Looking at the family level, HC is not very different from T1.  But T2 is less d
 
 ### Split Diversity by site
 
-Diversity by site
+The change in diversity is site specific.  Is that driven by the controls from each site or the AN from each site?
 
-```{r}
-plotDiv(meta %>% filter(LOCATION=="ACUTE"), column="alpha.div.raw", saveToDir=NA) + ggtitle("ACUTE")
-plotDiv(meta %>% filter(LOCATION=="CEED"), column="alpha.div.raw", saveToDir=NA) + ggtitle("CEED")
-plotDiv(meta %>% filter(LOCATION=="FARGO"), column="alpha.div.raw", saveToDir=NA) + ggtitle("FARGO")
-```
-
-The change in diversity is site specific.
-
-Is that driven by the controls from each site or the AN from each site?
-
-In each comparison, use all controls.
-```{r}
-plotDiv(meta %>% filter(LOCATION=="ACUTE" | TIMEPOINT=="HC"), column="alpha.div.raw", saveToDir=NA) + ggtitle("ACUTE")
-plotDiv(meta %>% filter(LOCATION=="CEED" | TIMEPOINT=="HC"), column="alpha.div.raw", saveToDir=NA) + ggtitle("CEED")
-plotDiv(meta %>% filter(LOCATION=="FARGO" | TIMEPOINT=="HC"), column="alpha.div.raw", saveToDir=NA) + ggtitle("FARGO")
-```
-
-Using the site-specific controls, or all controls as a group, these are still true:
-
- * At ACUTE, HC and T1 are not significantly different in terms of diversity, but T2 is less (and the diff significant against either T1 or HC).
- * At CEED, there is not significant difference between any of the groups.
- * At FARGO, T1 and T2 are not significantly different from each other, but both are greater than HC.
-
-This is based on looking at the family level data.
+To test this, in each comparison, use all controls.
 
 Save a pdf with these figures with matched next to each other:
 ```{r}
@@ -267,86 +244,8 @@ plotRich = function(df, column, sig=0.05, saveToDir=outDir, tLevel=taxaLevel){
 plotRich(meta, column="richness.raw")
 ```
 
-### Richness with greater than 1 count
-
-```{r}
-countRichnessThreshold <- function(sampleCounts, threshold=0){
-  return(suppressWarnings(sum(sampleCounts > threshold)))
-}
-
-meta$richness.over0 = apply(counts, countRichnessThreshold, MARGIN=1, threshold=0)[row.names(meta)]
-plotRich(meta, column="richness.over0", saveToDir=NA)
-
-meta$richness.over1 = apply(counts, countRichnessThreshold, MARGIN=1, threshold=1)[row.names(meta)]
-plotRich(meta, column="richness.over1", saveToDir=NA)
-
-meta$richness.over2 = apply(counts, countRichnessThreshold, MARGIN=1, threshold=2)[row.names(meta)]
-plotRich(meta, column="richness.over2", saveToDir=NA)
-
-meta$richness.over4 = apply(counts, countRichnessThreshold, MARGIN=1, threshold=4)[row.names(meta)]
-plotRich(meta, column="richness.over4", saveToDir=NA)
-
-meta$richness.over8 = apply(counts, countRichnessThreshold, MARGIN=1, threshold=8)[row.names(meta)]
-plotRich(meta, column="richness.over8", saveToDir=NA)
-
-meta$richness.over20 = apply(counts, countRichnessThreshold, MARGIN=1, threshold=20)[row.names(meta)]
-plotRich(meta, column="richness.over20", saveToDir=NA)
-```
-
-With this modification to the approach, the significance between the T1 and T2 group get a little iffy. That test was sitting on the borderline to begin with.  But the idea that richness is less in T2 than HC is pretty solid.
-
-Counting everything that has even a single count is sensitive to noise. Lets raise the bar a bit. Using a cuttoff 2 or 10 is more restrictive on a low-seq-depth sample than a deeper one.  So raise the bar based on the distribution of counts within each sample.
-
-```{r}
-countRichness <- function(sampleCounts, probs=0){
-  if (probs == 0 ) threshold = 0
-  else{
-    threshold = quantile(sampleCounts[sampleCounts > 0], probs=probs)
-  }
-  # message("threshold: ", threshold)
-  return(suppressWarnings(sum(sampleCounts > threshold)))
-}
-
-meta$richness.raw0 = apply(counts, countRichness, MARGIN=1, probs=0)[row.names(meta)]
-plotRich(meta, column="richness.raw0", saveToDir=NA)
-
-meta$richness.raw01 = apply(counts, countRichness, MARGIN=1, probs=0.01)[row.names(meta)]
-plotRich(meta, column="richness.raw01", saveToDir=NA)
-
-meta$richness.raw05 = apply(counts, countRichness, MARGIN=1, probs=0.05)[row.names(meta)]
-plotRich(meta, column="richness.raw05", saveToDir=NA)
-
-meta$richness.raw10 = apply(counts, countRichness, MARGIN=1, probs=0.10)[row.names(meta)]
-plotRich(meta, column="richness.raw10", saveToDir=NA)
-
-meta$richness.raw50 = apply(counts, countRichness, MARGIN=1, probs=0.50)[row.names(meta)]
-plotRich(meta, column="richness.raw50", saveToDir=NA)
-```
-
-This alteration to the approach does not change our story.
 
 ### Split Richness by site
-
-Richness by site
-
-```{r}
-plotRich(meta %>% filter(LOCATION=="ACUTE"), column="richness.raw", saveToDir=NA) + ggtitle("ACUTE")
-plotRich(meta %>% filter(LOCATION=="CEED"), column="richness.raw", saveToDir=NA) + ggtitle("CEED")
-plotRich(meta %>% filter(LOCATION=="FARGO"), column="richness.raw", saveToDir=NA) + ggtitle("FARGO")
-```
-
-```{r}
-plotRich(meta %>% filter(LOCATION=="ACUTE" | TIMEPOINT=="HC"), column="richness.raw", saveToDir=NA) + ggtitle("ACUTE")
-plotRich(meta %>% filter(LOCATION=="CEED" | TIMEPOINT=="HC"), column="richness.raw", saveToDir=NA) + ggtitle("CEED")
-plotRich(meta %>% filter(LOCATION=="FARGO" | TIMEPOINT=="HC"), column="richness.raw", saveToDir=NA) + ggtitle("FARGO")
-```
-
-Using all controls together, or using site-specific controls, the following is true:
-
- * At ACUTE, HC and T1 are not significantly different from each other, but T2 is less than either HC or T1.
- * At CEED, there is no significant difference between HC, T1 and T2.
- * At Fargo, there is no significant difference between HC, T1 and T2.
-
 
 Save a pdf of these figures with matched site next to each other.
 ```{r}
@@ -370,82 +269,7 @@ plotRich(meta %>% filter(LOCATION=="FARGO" | TIMEPOINT=="HC"), column="richness.
 dev.off()
 ```
 
-
-
-
-
-
-## Sequencing Depth
-
-What is the impact of sequencing depth on these metrics?
-
-Calculate the seq depth in thousand-read counts.
-```{r}
-depths = rowSums(counts) 
-meta$seqDepthK = depths[meta$DNA.ID] / 1000
-```
-
-How does that impact the richness.raw?
-```{r}
-depthPlot = ggplot(meta, aes(x=seqDepthK, y=richness.raw, col=LOCATION)) +
-  geom_point() +
-  scale_colour_manual(values = myColorPalette)
-depthPlot
-depthPlot + facet_wrap("LOCATION")
-depthPlot + facet_grid(LOCATION ~ TIMEPOINT)
-```
-
-How does that affect diversity?
-```{r}
-depthPlot = ggplot(meta, aes(x=seqDepthK, y=alpha.div.raw, col=LOCATION)) +
-  geom_point() +
-  scale_colour_manual(values = myColorPalette)
-depthPlot
-depthPlot + facet_wrap("LOCATION")
-depthPlot + facet_grid(LOCATION ~ TIMEPOINT)
-```
-
-Does a linear model show that sequencing depth impacts alpha diversity?
-```{r}
-# diversity.lm = lm(data=meta, formula = alpha.div.raw ~ seqDepthK + TIMEPOINT + LOCATION )
-# summary(diversity.lm)
-# diversity.lm = lm(data=meta, formula = alpha.div.raw ~ seqDepthK + TIMEPOINT )
-# summary(diversity.lm)
-# diversity.lm = lm(data=meta, formula = alpha.div.raw ~ seqDepthK )
-# summary(diversity.lm)
-diversity.lm = lm(data=meta, formula = alpha.div.raw ~ seqDepthK + LOCATION * TIMEPOINT)
-summary(diversity.lm)
-```
-
-No.  It looks like location does impact diversity, and timepoint does.  But not sequencing depth.  So there's not much justification for rarefying the data to calculate the diversity.
-
-
-```{r}
-# # Well, I only think that the very low sequencing depth cases are really influenced by read depth.
-# 
-# diversity.lm = lm(data=meta[meta$seqDepthK < 25,], formula = alpha.div.raw ~ seqDepthK + TIMEPOINT + LOCATION )
-# summary(diversity.lm)
-# diversity.lm = lm(data=meta[meta$seqDepthK < 25,], formula = alpha.div.raw ~ seqDepthK + TIMEPOINT )
-# summary(diversity.lm)
-# diversity.lm = lm(data=meta[meta$seqDepthK < 25,], formula = alpha.div.raw ~ seqDepthK )
-# summary(diversity.lm)
-# diversity.lm = lm(data=meta[meta$seqDepthK < 25,], formula = alpha.div.raw ~ seqDepthK + LOCATION * TIMEPOINT)
-# summary(diversity.lm)
-# 
-# # Still no.  
-```
-
-How does that affect richness?
-```{r}
-depthPlot = ggplot(meta, aes(x=seqDepthK, y=richness.raw, col=LOCATION)) +
-  geom_point() +
-  scale_colour_manual(values = myColorPalette)
-depthPlot
-depthPlot + facet_wrap("LOCATION")
-depthPlot + facet_grid(LOCATION ~ TIMEPOINT)
-```
-
-## save results
+# Save Results
 
 ```{r}
 dataToSave = data.frame(DNA.ID = meta$DNA.ID,
@@ -455,25 +279,6 @@ dataToSave = data.frame(DNA.ID = meta$DNA.ID,
 filename = file.path(outDir, paste0("diversity-and-richness_", taxaLevel, ".txt"))
 write.table(x=dataToSave, file=filename, sep="\t", quote=F, row.names = F)
 message("Saved file to: ", filename)
-```
-
-# Conclussions
-
-At Acute only, T2 samples have significantly less shannon diversity and richness compared to the T1 samples from that site, the HC samples from that site, or all HC's from all site.
-There is no significant difference in richness at either of the other sites. For diversity at fargo, there is a modest signal for both T1 and T2 to be greater than the diversity in the HC group, but there is no significant difference at CEED.  The difference at Farger is significant even when using all site's controls, but the number of T1 and T2 samples is still very small. 
-
-I am inclined to think that there is not any difference in the richness or diversity between HC and T1 patients at any site, and that ACUTE has a site-specific affect that decreases both richness and diversity. 
-
-```{r}
-plotDiv(meta, column="alpha.div.raw", saveToDir=NA)
-plotDiv(meta %>% filter(LOCATION=="ACUTE"), column="alpha.div.raw", saveToDir=NA) + ggtitle("ACUTE")
-plotDiv(meta %>% filter(LOCATION=="CEED"), column="alpha.div.raw", saveToDir=NA) + ggtitle("CEED")
-plotDiv(meta %>% filter(LOCATION=="FARGO"), column="alpha.div.raw", saveToDir=NA) + ggtitle("FARGO")
-
-plotRich(meta, column="richness.raw", saveToDir=NA)
-plotRich(meta %>% filter(LOCATION=="ACUTE"), column="richness.raw", saveToDir=NA) + ggtitle("ACUTE")
-plotRich(meta %>% filter(LOCATION=="CEED"), column="richness.raw", saveToDir=NA) + ggtitle("CEED")
-plotRich(meta %>% filter(LOCATION=="FARGO"), column="richness.raw", saveToDir=NA) + ggtitle("FARGO")
 ```
 
 ```{r}
