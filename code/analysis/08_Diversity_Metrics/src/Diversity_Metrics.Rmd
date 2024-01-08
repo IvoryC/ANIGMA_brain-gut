@@ -69,6 +69,12 @@ if (file.exists(themeFile)){
 theme_set(theme_classic())
 ```
 
+Source the plot functions that go with this module.
+```{r}
+source("../resources/PlotDiversityRichness.R")
+```
+
+
 Pick a taxonomic level. Take an argument if one is given.
 ```{r}
 args = commandArgs(trailingOnly=TRUE)
@@ -164,73 +170,10 @@ meta$alpha.div.raw = div.alpha[row.names(meta)]
 ```
 
 ```{r plotDiv}
-sizeByP <- function(p, sig=0.05){
-  size = ifelse(p < sig, (-log(p)-1), 1)
-  return(size)
-}
-
-plotDiv = function(df, column="diversity", sig=0.05, saveToDir=outDir, tLevel=taxaLevel){
-  df$diversity  = df[,column]
-  
-  p = ggplot(data=df, aes(x=TIMEPOINT, y=diversity, fill=TIMEPOINT)) +
-    geom_boxplot() +
-    geom_violin(fill=NA) +
-    geom_jitter(height = 0, width = .1) +
-    scale_fill_manual(values = myColorPalette) +
-    ggtitle(column)
-  
-  if (!is.na(tLevel)){
-      p = p +
-          labs(subtitle = paste0(tLevel, " level"))
-  }
-
-  if (!is.na(sig)){
-      
-    topY = max(df$diversity, na.rm=T)
-    bitHigher = topY * 0.05
-    ysigs = c(HCvT1p=topY+(bitHigher*1), HCvT2p=topY+(bitHigher*2), T2vT1p=topY+(bitHigher*3))
-      
-    HCvT1p = t.test(df[df$TIMEPOINT=="HC", "diversity"],
-                    df[df$TIMEPOINT=="T1", "diversity"])$p.value
-    p = p +
-        geom_segment(x=1, xend=2, y=ysigs["HCvT1p"], yend=ysigs["HCvT1p"],
-                     col=ifelse(HCvT1p < sig, "black", "gray"),
-                     size=sizeByP(HCvT1p, sig=sig))
-
-    HCvT2p = t.test(df[df$TIMEPOINT=="HC", "diversity"],
-                    df[df$TIMEPOINT=="T2", "diversity"])$p.value
-    p = p +
-        geom_segment(x=.8, xend=3.2, y=ysigs["HCvT2p"], yend=ysigs["HCvT2p"],
-                     col=ifelse(HCvT2p < sig, "black", "gray"),
-                     size=sizeByP(HCvT2p, sig=sig))
-
-    T2vT1p = t.test(df[df$TIMEPOINT=="T2", "diversity"],
-                    df[df$TIMEPOINT=="T1", "diversity"])$p.value
-    p = p +
-        geom_segment(x=2, xend=3, y=ysigs["T2vT1p"], yend=ysigs["T2vT1p"],
-                     col=ifelse(T2vT1p < sig, "black", "gray"),
-                     size=sizeByP(T2vT1p, sig=sig))
-    
-    p = p +
-      annotate("text", x=-Inf, y=ysigs, 
-               label=signif(c(HCvT1p, HCvT2p, T2vT1p), 
-                            digits=3), hjust = "inward")
-    
-    p = p +
-        labs(caption=paste0("Horizontal bars indicated if t-test was significant.
-             Bars are black if p-value is less than ", sig, ", otherwise gray. 
-             Line thickness is proportional to the neg. log p."))
-  }
-
-  p = p +  scale_y_continuous(expand = expansion(add = 0.5))
-  
-  if (!is.na(saveToDir)){
-      filename = filename = file.path(saveToDir, paste0(column, ".png"))
-      ggsave(filename = filename)
-      message("Saved image as: ", filename)
-  }
-
-  return(p)
+# source("../resources/PlotDiversityRichness.R")
+# set defaults for this document
+plotDiv = function(df, column, sig=0.05, saveToDir=outDir, tLevel=taxaLevel){
+  plotDiversity(df, column=column, sig=sig, saveToDir=saveToDir, tLevel=tLevel)
 }
 
 plotDiv(meta, column="alpha.div.raw", sig=0.05)
@@ -315,67 +258,10 @@ meta$richness.raw = rich.raw[row.names(meta)]
 ```
 
 ```{r plotRich}
+# source("../resources/PlotDiversityRichness.R")
+# set defaults for this document
 plotRich = function(df, column, sig=0.05, saveToDir=outDir, tLevel=taxaLevel){
-  df$richness  = df[,column]
-  p = ggplot(data=df, aes(x=TIMEPOINT, y=richness, fill=TIMEPOINT)) +
-    # scale_y_continuous(breaks=seq(0, ncol(counts), 5)) +
-    geom_hline(yintercept=c(0, ncol(counts)), col="white", size=2) +
-    geom_boxplot(outlier.alpha = 0) +
-    geom_violin(fill=NA) +
-    geom_jitter(height = 0, width = .1) +
-    scale_fill_manual(values = myColorPalette) +
-    ggtitle(column)
-  
-  if (!is.na(tLevel)){
-      p = p +
-          labs(subtitle = paste0(tLevel, " level"))
-  }
-  
-  if (!is.na(sig)){
-    
-    topY = max(df$richness, na.rm=T)
-    bitHigher = topY * 0.05
-    ysigs = c(HCvT1p=topY+(bitHigher*1), HCvT2p=topY+(bitHigher*2), T2vT1p=topY+(bitHigher*3))
-    
-    HCvT1p = t.test(df[df$TIMEPOINT=="HC",column], 
-                    df[df$TIMEPOINT=="T1",column])$p.value
-    p = p + 
-        geom_segment(x=1, xend=2, y=ysigs["HCvT1p"], yend=ysigs["HCvT1p"], 
-                     col=ifelse(HCvT1p < sig, "black", "gray"),
-                     size=sizeByP(HCvT1p, sig=sig))
-    
-    HCvT2p = t.test(df[df$TIMEPOINT=="HC",column], 
-                    df[df$TIMEPOINT=="T2",column])$p.value
-    p = p + 
-        geom_segment(x=1, xend=3, y=ysigs["HCvT2p"], yend=ysigs["HCvT2p"], 
-                     col=ifelse(HCvT2p < sig, "black", "gray"),
-                     size=sizeByP(HCvT2p, sig=sig))
-    
-    T2vT1p = t.test(df[df$TIMEPOINT=="T2",column], 
-                    df[df$TIMEPOINT=="T1",column])$p.value
-    p = p + 
-        geom_segment(x=2, xend=3, y=ysigs["T2vT1p"], yend=ysigs["T2vT1p"], 
-                     col=ifelse(T2vT1p < sig, "black", "gray"),
-                     size=sizeByP(T2vT1p, sig=sig))
-    
-    p = p +
-      annotate("text", x=-Inf, y=ysigs, 
-               label=signif(c(HCvT1p, HCvT2p, T2vT1p), 
-                            digits=3), hjust = "inward")
-    
-    p = p +
-        labs(caption=paste0("Horizontal bars indicated if t-test was significant.
-             Bars are black if p-value is less than ", sig, ", otherwise gray. 
-             Line thickness is proportional to the neg. log p."))
-  }
-  
-  if (!is.na(saveToDir)){
-      filename = filename = file.path(saveToDir, paste0(column, ".png"))
-      ggsave(filename = filename)
-      message("Saved image as: ", filename)
-  }
-  
-  return(p)
+    plotRichness(df, column, sig=sig, saveToDir=saveToDir, tLevel=tLevel)
 }
 
 plotRich(meta, column="richness.raw")
@@ -588,5 +474,12 @@ plotRich(meta, column="richness.raw", saveToDir=NA)
 plotRich(meta %>% filter(LOCATION=="ACUTE"), column="richness.raw", saveToDir=NA) + ggtitle("ACUTE")
 plotRich(meta %>% filter(LOCATION=="CEED"), column="richness.raw", saveToDir=NA) + ggtitle("CEED")
 plotRich(meta %>% filter(LOCATION=="FARGO"), column="richness.raw", saveToDir=NA) + ggtitle("FARGO")
+```
+
+```{r}
+sessionInfo()
+sizeByP
+plotRichness
+plotDiversity
 ```
 
