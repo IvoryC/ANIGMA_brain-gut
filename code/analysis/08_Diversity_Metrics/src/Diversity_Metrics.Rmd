@@ -75,7 +75,7 @@ args = commandArgs(trailingOnly=TRUE)
 if (length(args) > 0){
     taxaLevel = args[1]
 }else{
-    taxaLevel = "family"
+    taxaLevel = "species"
 }
 ```
 
@@ -185,10 +185,11 @@ plotDiv = function(df, column="diversity", sig=0.05, saveToDir=outDir, tLevel=ta
   }
 
   if (!is.na(sig)){
-
-    ysigs = c(HCvT1p=0.9, HCvT2p=.95, T2vT1p=1)
-    ysigs = ysigs * 3
-
+      
+    topY = max(df$diversity, na.rm=T)
+    bitHigher = topY * 0.05
+    ysigs = c(HCvT1p=topY+(bitHigher*1), HCvT2p=topY+(bitHigher*2), T2vT1p=topY+(bitHigher*3))
+      
     HCvT1p = t.test(df[df$TIMEPOINT=="HC", "diversity"],
                     df[df$TIMEPOINT=="T1", "diversity"])$p.value
     p = p +
@@ -332,8 +333,9 @@ plotRich = function(df, column, sig=0.05, saveToDir=outDir, tLevel=taxaLevel){
   
   if (!is.na(sig)){
     
-    ysigs = c(HCvT1p=0.9, HCvT2p=.95, T2vT1p=1)
-    ysigs = ysigs * ncol(counts)
+    topY = max(df$richness, na.rm=T)
+    bitHigher = topY * 0.05
+    ysigs = c(HCvT1p=topY+(bitHigher*1), HCvT2p=topY+(bitHigher*2), T2vT1p=topY+(bitHigher*3))
     
     HCvT1p = t.test(df[df$TIMEPOINT=="HC",column], 
                     df[df$TIMEPOINT=="T1",column])$p.value
