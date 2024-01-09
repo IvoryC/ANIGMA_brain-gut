@@ -120,7 +120,7 @@ taxaLevel="pathway"
 
 
 ```{r}
-inputFile="~/git/Anorexia_Analyses2021/analysis/input/pathway/humanN2_pathabundance_cpm.tsv"
+inputFile="../../input/pathway/humanN2_pathabundance_cpm.tsv"
 ```
 
 Read file ``r inputFile``.
