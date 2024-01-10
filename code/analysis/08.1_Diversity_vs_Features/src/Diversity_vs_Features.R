@@ -1,32 +1,32 @@
----
-title: "Diversity-interactions"
-output: html_document
-date: "2024-01-05"
----
-
-```{r include=FALSE}
+#' ---
+#' title: "Diversity-interactions"
+#' output: html_document
+#' date: "2024-01-05"
+#' ---
+#' 
+## ----include=FALSE--------------------------------------------------------------------------------------------------------
 # I prefer to edit the Rmd file and then use purl to convert into a R script.
 # knitr::purl(input=dir(pattern="Rmd"), documentation = 2L)
 knitr::opts_chunk$set(echo = TRUE)
-```
 
-
-# Setup
-
-### libraries
-
-```{r results = "hold"}
+#' 
+#' 
+#' # Setup
+#' 
+#' ### libraries
+#' 
+## ----results = "hold"-----------------------------------------------------------------------------------------------------
 tellme <- function(name){print(paste0("Package ", name, " version: ", packageVersion(name)))}
 
 library(tidyr); tellme("tidyr")
 suppressPackageStartupMessages(library(dplyr)); tellme("dplyr")
 library(ggplot2); tellme("ggplot2")
 library(ggrepel); tellme("ggrepel")
-```
-### Colors
 
-A named vector of color vectors.  Most of these match the previous paper. 
-```{r, fig.height=4, fig.width=2, echo=FALSE, include=FALSE}
+#' ### Colors
+#' 
+#' A named vector of color vectors.  Most of these match the previous paper. 
+## ----fig.height=4, fig.width=2, echo=FALSE, include=FALSE-----------------------------------------------------------------
 themeFile = "../../input/themes.R"
 if (file.exists(themeFile)){
     source(themeFile)
@@ -69,52 +69,52 @@ if (file.exists(themeFile)){
 
 # Use the theme_classic() ggplot theme unless otherwise indicated.
 theme_set(theme_classic())
-```
 
-Pick a taxonomic level. Take an argument if one is given.
-```{r}
+#' 
+#' Pick a taxonomic level. Take an argument if one is given.
+## -------------------------------------------------------------------------------------------------------------------------
 args = commandArgs(trailingOnly=TRUE)
 if (length(args) > 0){
     taxaLevel = args[1]
 }else{
     taxaLevel = "species"
 }
-```
 
-Direct output
-```{r}
+#' 
+#' Direct output
+## -------------------------------------------------------------------------------------------------------------------------
 outDir = file.path("..", "output", taxaLevel)
 suppressWarnings( dir.create(outDir, recursive = T) )
-```
 
-Output will be saved to: ``r outDir``
-
-# Main
-
-## Read meta data.
-
-Read the original metadata file.
-```{r}
+#' 
+#' Output will be saved to: ``r outDir``
+#' 
+#' # Main
+#' 
+#' ## Read meta data.
+#' 
+#' Read the original metadata file.
+## -------------------------------------------------------------------------------------------------------------------------
 meta = read.delim("../../input/meta/ANIGMA-metadata.txt") %>%
   select(PARTICIPANT.ID, LOCATION, TIMEPOINT, AGE, SUBTYPE, BMI, 
          STAI_Y1, STAI_Y2, STAI_TOTAL, PSS, DAYS_TREAT, Weight_kg, DNA.ID, DUR_ILLNESS_YRS) 
 dim(meta)
-```
 
-Check metadata.
-```{r}
+#' 
+#' Check metadata.
+## -------------------------------------------------------------------------------------------------------------------------
 if (any(!is.na(meta$DAYS_TREAT[meta$TIMEPOINT=="HC"]))){
     message("For any Healthy Control participant, the DAYS_TREAT should be NA (not 0).")
     meta$DAYS_TREAT[meta$TIMEPOINT=="HC"] = NA
 }else{
     message("Ah, good, for Healthy Control participants, the DAYS_TREAT is NA (not 0).")
 }
-```
 
-## Read diversity data
-
-
-```{r}
+#' 
+#' ## Read diversity data
+#' 
+#' 
+## -------------------------------------------------------------------------------------------------------------------------
 pipeDir="../.."
 inputMod = dir(pipeDir, pattern="Diversity_Metrics", full.names = T)
 
@@ -128,150 +128,150 @@ inputFileNames = c(
     species="diversity-and-richness_species.txt")
 
 inputFile=file.path(inputMod, "output", taxaLevel, inputFileNames[taxaLevel])
-```
 
-Read file ``r inputFile``.
-
-```{r}
+#' 
+#' Read file ``r inputFile``.
+#' 
+## -------------------------------------------------------------------------------------------------------------------------
 divdata = read.delim2(inputFile) %>% select(DNA.ID, shannon.diversity, richness)
 divdata$shannon.diversity = as.numeric(divdata$shannon.diversity)
 dim(divdata)
-```
 
-## Feature engineering
-
-For subtype, we are only interested in the AN cases. HC is not really an AN subtype. And we need to split samples between T1 and T2 so we are not double-dipping with each paired sample.
-```{r}
+#' 
+#' ## Feature engineering
+#' 
+#' For subtype, we are only interested in the AN cases. HC is not really an AN subtype. And we need to split samples between T1 and T2 so we are not double-dipping with each paired sample.
+## -------------------------------------------------------------------------------------------------------------------------
 meta$SUBTYPE.AN = meta$SUBTYPE
 meta$SUBTYPE.AN[meta$SUBTYPE.AN=="HC"] = NA
-```
 
-The anorexia signal is what we would see by comparing T1 to HC or T2 to HC, which is the "TIMEPOINT" variable. Lets call it the ANOREXIA variable so that its clearer in the summaries.
-```{r}
+#' 
+#' The anorexia signal is what we would see by comparing T1 to HC or T2 to HC, which is the "TIMEPOINT" variable. Lets call it the ANOREXIA variable so that its clearer in the summaries.
+## -------------------------------------------------------------------------------------------------------------------------
 meta$ANOREXIA = meta$TIMEPOINT
-```
 
-
-## Previous feature engineering
-
-Read the diffs metadata - data where diffs have been calculated.
-```{r}
+#' 
+#' 
+#' ## Previous feature engineering
+#' 
+#' Read the diffs metadata - data where diffs have been calculated.
+## -------------------------------------------------------------------------------------------------------------------------
 prevModule = dir(path="../..", pattern="Participant_Metadata", full.names = T)
 diffsFile = file.path(prevModule, "output", "ANIGMA-metadata_by_AN_participant.txt")
 diffs = read.delim(diffsFile)
 row.names(diffs) = diffs$PARTICIPANT.ID
 dim(diffs)
-```
 
-Read in modified metadata from: ``r diffsFile``
-
-This table has ``r nrow(diffs)`` rows and ``r ncol(diffs)`` columns.
-
-Match this data withe corresponding DNA ID for T1 and T2.
-```{r}
+#' 
+#' Read in modified metadata from: ``r diffsFile``
+#' 
+#' This table has ``r nrow(diffs)`` rows and ``r ncol(diffs)`` columns.
+#' 
+#' Match this data withe corresponding DNA ID for T1 and T2.
+## -------------------------------------------------------------------------------------------------------------------------
 diffKey = meta %>% 
     select(PARTICIPANT.ID, TIMEPOINT, DNA.ID) %>%
     pivot_wider(id_cols = PARTICIPANT.ID, names_from = TIMEPOINT, values_from = DNA.ID, names_prefix = "DNA.ID.") %>%
     select(-DNA.ID.HC)
 diffs = merge(diffs, diffKey, all.x=T, by="PARTICIPANT.ID")
-```
 
-
-## merge
-
-Merge meta and data.
-```{r}
+#' 
+#' 
+#' ## merge
+#' 
+#' Merge meta and data.
+## -------------------------------------------------------------------------------------------------------------------------
 data = merge(divdata, meta, by="DNA.ID")
-```
 
-
-```{r include=FALSE}
+#' 
+#' 
+## ----include=FALSE--------------------------------------------------------------------------------------------------------
 # # Make a scrambled version. We can use this to verify that we see null results, and our tests are not inherently flawed.
 # scram.counts = counts.norm
 # row.names(scram.counts) = sample(row.names(scram.counts), size=nrow(scram.counts), replace = FALSE)
 # scrambled.data = merge(scram.counts, meta, by.x=0, by.y="DNA.ID")
 # rm(scram.counts)
-```
 
-Merge the T1 diversity data to the per-participant differences data. And T2.
-```{r}
+#' 
+#' Merge the T1 diversity data to the per-participant differences data. And T2.
+## -------------------------------------------------------------------------------------------------------------------------
 diffData1 = merge(divdata, diffs, by.x="DNA.ID", by.y="DNA.ID.T1")
 diffData2 = merge(divdata, diffs, by.x="DNA.ID", by.y="DNA.ID.T2")
-```
 
-
-Make sure Patient ID is not treated as a numerical value.
-```{r}
+#' 
+#' 
+#' Make sure Patient ID is not treated as a numerical value.
+## -------------------------------------------------------------------------------------------------------------------------
 data$PARTICIPANT.ID = as.character(data$PARTICIPANT.ID)
 # scrambled.data$PARTICIPANT.ID = as.character(scrambled.data$PARTICIPANT.ID)
-```
 
-# Test
-
-## test types
-
-Group the metadata variables based on how they should be tested.
-
-We have our categorical variables (two or more categories). These can be split in to variables that should be handled across time (T1 and T2 samples are both included in the same test) or by time (the test should be exclude one or the other time point so all samples in the test are independent). 
-
-T1 and T2, but not HC.
-```{r}
+#' 
+#' # Test
+#' 
+#' ## test types
+#' 
+#' Group the metadata variables based on how they should be tested.
+#' 
+#' We have our categorical variables (two or more categories). These can be split in to variables that should be handled across time (T1 and T2 samples are both included in the same test) or by time (the test should be exclude one or the other time point so all samples in the test are independent). 
+#' 
+#' T1 and T2, but not HC.
+## -------------------------------------------------------------------------------------------------------------------------
 # variables_acrossTime = c("PARTICIPANT.ID", "TIMEPOINT")
 variables_acrossTime = c("TIMEPOINT")
 variables_acrossTime
-```
-Handle by time: T1 (HC and T1) or T2 (HC and T2)
-```{r}
+
+#' Handle by time: T1 (HC and T1) or T2 (HC and T2)
+## -------------------------------------------------------------------------------------------------------------------------
 variables_byTime = c("LOCATION", "ANOREXIA", "SUBTYPE.AN")
 variables_byTime
-```
 
-
-A subset of those are binary, and we can use the t-test.
-```{r}
+#' 
+#' 
+#' A subset of those are binary, and we can use the t-test.
+## -------------------------------------------------------------------------------------------------------------------------
 binary = c("TIMEPOINT.AN")
 # HC vs T1
 # HC vs T2
 binary
-```
 
-Continuous variables come in two forms: 
-
- * constants - measurements that are assumed to be the same for a given person at T1 and T2, such as age.
- * diffables - measurements where the difference could be calculated and is potentially meaningful. These are metrics that:
- 
-   - could be tested at either time point, and 
-   - should not be tested with both time points simultaneously because there are many pairs of non-independent samples, and 
-   - we could test difference against taxa_metrics in addition to testing the T1 and the T2 values.
- 
-```{r}
+#' 
+#' Continuous variables come in two forms: 
+#' 
+#'  * constants - measurements that are assumed to be the same for a given person at T1 and T2, such as age.
+#'  * diffables - measurements where the difference could be calculated and is potentially meaningful. These are metrics that:
+#'  
+#'    - could be tested at either time point, and 
+#'    - should not be tested with both time points simultaneously because there are many pairs of non-independent samples, and 
+#'    - we could test difference against taxa_metrics in addition to testing the T1 and the T2 values.
+#'  
+## -------------------------------------------------------------------------------------------------------------------------
 constants = c("AGE", "DUR_ILLNESS_YRS", "DAYS_TREAT")
-```
- 
-```{r}
+
+#'  
+## -------------------------------------------------------------------------------------------------------------------------
 diffables =c("Weight_kg", "BMI", "STAI_Y1", "STAI_Y2", "STAI_TOTAL", "PSS")
 diffables
-```
 
-We have previously calculated differences, and a couple other per-patient numerical features: T1.severity and BMI.gain.per.day.
-```{r}
+#' 
+#' We have previously calculated differences, and a couple other per-patient numerical features: T1.severity and BMI.gain.per.day.
+## -------------------------------------------------------------------------------------------------------------------------
 # deltas = names(diffs) %>% grep(pattern="diff", value = T)
 deltas = c("T1.severity", "Weight_kg.diff", "BMI.diff", "BMI.gain.per.day", "STAI_Y1.diff", "STAI_Y2.diff", "STAI_TOTAL.diff", "PSS.diff")
 deltas
-```
 
-taxa_metrics will be the variable name to refer to 
-```{r}
+#' 
+#' taxa_metrics will be the variable name to refer to 
+## -------------------------------------------------------------------------------------------------------------------------
 taxa_metrics = c("shannon.diversity", "richness")
-```
 
-We have ``r length(taxa_metrics)`` to test.
-
-## Categorical
-
-Compare the values for each taxon against each categorical feature. Use the 1-way-anova and the Kruskal test.
-
-```{r TaxaVsCategoryTest}
+#' 
+#' We have ``r length(taxa_metrics)`` to test.
+#' 
+#' ## Categorical
+#' 
+#' Compare the values for each taxon against each categorical feature. Use the 1-way-anova and the Kruskal test.
+#' 
+## ----TaxaVsCategoryTest---------------------------------------------------------------------------------------------------
 displayTaxonName <- function(string, string2){
   return(string)
 }
@@ -400,9 +400,9 @@ TaxaVsCategoryTest <- function(dataDF, taxa_metrics, variables, doPlot=TRUE, red
 
     return(pvalTable)
 }
-```
 
-```{r runTaxaVsCategoryTest}
+#' 
+## ----runTaxaVsCategoryTest------------------------------------------------------------------------------------------------
 # parametric test - anova
 acrossTimeTable = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC"),
                                      taxa_metrics, variables_acrossTime,
@@ -441,18 +441,18 @@ kwAtT2 = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "T1"),
                             taxa_metrics, variables_byTime, doPlot=F, testType = "kruskal.test")
 kwAtHC = TaxaVsCategoryTest(data %>% filter(TIMEPOINT == "HC"),
                             taxa_metrics, "LOCATION", doPlot=F, testType = "kruskal.test")
-```
 
-
-## binary tests - t-test
-
-This is basically the same as the anova test with two categories, so we my not bother.
-
-## Numeric feature tests
-
-Compare the values for each taxon against each numeric feature.
-
-```{r TaxaVsNumericTest}
+#' 
+#' 
+#' ## binary tests - t-test
+#' 
+#' This is basically the same as the anova test with two categories, so we my not bother.
+#' 
+#' ## Numeric feature tests
+#' 
+#' Compare the values for each taxon against each numeric feature.
+#' 
+## ----TaxaVsNumericTest----------------------------------------------------------------------------------------------------
 TaxaVsNumericTest <- function(dataDF, taxa_metrics, variables, doPlot=TRUE, redPval=0.05, testType="pearson", fileNameBase=NULL){
     # testType - one of "pearson" or "kendall"
     # taxa_metrics - a subset of columns representing taxonomic features
@@ -567,9 +567,9 @@ TaxaVsNumericTest <- function(dataDF, taxa_metrics, variables, doPlot=TRUE, redP
     
     return(pvalTable)
 }
-```
 
-```{r runTaxaVsNumericTest}
+#' 
+## ----runTaxaVsNumericTest-------------------------------------------------------------------------------------------------
 suppressWarnings({
     suppressMessages({
         peAtT1 = TaxaVsNumericTest(data %>% filter(TIMEPOINT == "T1"), 
@@ -587,16 +587,16 @@ suppressWarnings({
         keAtDif2 = TaxaVsNumericTest(diffData2, taxa_metrics, deltas, doPlot=F, testType = "kendall")
     })
 })
-```
 
-# Test Summaries
-
-### Combine test results
-
-Merge to make one large heatmap.
-
-Merge the categorical values.
-```{r}
+#' 
+#' # Test Summaries
+#' 
+#' ### Combine test results
+#' 
+#' Merge to make one large heatmap.
+#' 
+#' Merge the categorical values.
+## -------------------------------------------------------------------------------------------------------------------------
 appendName <- function(df, suffix){
     names(df) = paste0(names(df), suffix)
     return(df)
@@ -634,11 +634,11 @@ m.all.1 = m.all.1 %>% select(starts_with("TIMEPOINT"),
                              starts_with("ANOREXIA"),
                              starts_with("LOCATION"),
                              everything())
-```
 
-
-Merge the numeric feature test results.
-```{r}
+#' 
+#' 
+#' Merge the numeric feature test results.
+## -------------------------------------------------------------------------------------------------------------------------
 appendName <- function(df, suffix){
     names(df) = paste0(names(df), suffix)
     return(df)
@@ -673,11 +673,11 @@ m.all.2 = m.all.2 %>% select(starts_with("Weight_kg"),
                              starts_with("PSS"),
                              starts_with("STAI"),
                              everything())
-```
 
-
-Merge into a single results table
-```{r}
+#' 
+#' 
+#' Merge into a single results table
+## -------------------------------------------------------------------------------------------------------------------------
 m.all = merge(m.all.1, m.all.2, by=0)
 
 # move row names
@@ -689,12 +689,12 @@ m.all = m.all %>% select(-Row.names)
 #     }), decreasing = T)
 orderRows = order(-log10(m.all$ANOREXIA.HCT1.anova), decreasing = T)
 m.all = m.all[ orderRows, ]
-```
 
-### Save tables
-
-Adjust p-values within each column, and save that table.  Add on the full taxon names, and keep row order.
-```{r}
+#' 
+#' ### Save tables
+#' 
+#' Adjust p-values within each column, and save that table.  Add on the full taxon names, and keep row order.
+## -------------------------------------------------------------------------------------------------------------------------
 # m.all.adj = apply(m.all, MARGIN = 2, FUN=p.adjust, method="fdr")
 m.all.adj = m.all
 for( test in names(m.all)){
@@ -710,14 +710,14 @@ m.all.adj.labeled = cbind(taxon=row.names(m.all.adj),
 
 write.table(m.all.adj.labeled, file = file.path(outDir, paste0("bigList_pvalues_fdr-adjusted_", taxaLevel, ".txt")),
             row.names=F, quote=F, sep="\t")
-```
 
-Build a summary table for each variable tested:
-
-  * How many tests have non-NA p-values?
-  * How many raw p-values are significant?
-  * How many are significant after adjusting for the number of taxa_metrics.
-```{r}
+#' 
+#' Build a summary table for each variable tested:
+#' 
+#'   * How many tests have non-NA p-values?
+#'   * How many raw p-values are significant?
+#'   * How many are significant after adjusting for the number of taxa_metrics.
+## -------------------------------------------------------------------------------------------------------------------------
 summary = data.frame(testName="TOTAL",
                      attemptedTests=NA,
                      testWithPvalue=NA,
@@ -746,13 +746,13 @@ summary = summary %>% filter(testName != "TOTAL")
 
 write.table(summary, file = file.path(outDir, paste0("bigList_summary_", taxaLevel, ".txt")),
             row.names=F, quote=F, sep="\t")
-```
 
-
-### pvalue heat map
-
-Show the p-value table as a heat map.
-```{r pvalHeat}
+#' 
+#' 
+#' ### pvalue heat map
+#' 
+#' Show the p-value table as a heat map.
+## ----pvalHeat-------------------------------------------------------------------------------------------------------------
 shortPathwayNames = function(longName){
   medName = gsub("[^ ]*: ", "", longName)
   isTooLong = nchar(medName) > 50
@@ -807,54 +807,54 @@ pvalTableToHeatMap = function(pvalTable, midpointPval=0.05, bluePvalue=0.05, red
       coord_fixed() +
       labs(caption=caption.about.names)
 }
-```
 
-
-Heat-map for categorical feature p-values.
-```{r}
+#' 
+#' 
+#' Heat-map for categorical feature p-values.
+## -------------------------------------------------------------------------------------------------------------------------
 pvalHeatMap.categories.file = file.path(outDir, paste0("heatmap_categoricalFeatures_raw-p-values_", taxaLevel, ".pdf"))
 pdf(file=pvalHeatMap.categories.file,
     height = 3 + nrow(m.all.1) / 6,
     width = 5 + ncol(m.all.1) / 6)
 pvalTableToHeatMap(m.all.1, title="catogrical-features raw p-values")
 dev.off()
-```
 
-Heat-map for numerical feature p-values.
-```{r}
+#' 
+#' Heat-map for numerical feature p-values.
+## -------------------------------------------------------------------------------------------------------------------------
 pvalHeatMap.numeric.file = file.path(outDir, paste0("heatmap_numericFeatures_raw-p-values_", taxaLevel, ".pdf"))
 pdf(file=pvalHeatMap.numeric.file,
     height = 3 + nrow(m.all.2) / 6,
     width = 5 + ncol(m.all.2) / 6)
 pvalTableToHeatMap(m.all.2, title="numeric-features raw p-values")
 dev.off()
-```
 
-
-Save a single large heatmap with all raw p-values
-```{r}
+#' 
+#' 
+#' Save a single large heatmap with all raw p-values
+## -------------------------------------------------------------------------------------------------------------------------
 pvalHeatMap.big.file = file.path(outDir, paste0("bigList_heatmap_raw-p-values_", taxaLevel, ".pdf"))
 pdf(file=pvalHeatMap.big.file,
     height = 3 + nrow(m.all) / 6,
     width = 5 + ncol(m.all) / 6)
 pvalTableToHeatMap(m.all, title="the big heatmap - raw p-values")
 dev.off()
-```
 
-Save a single large heatmap with all ajdusted p-values
-```{r}
+#' 
+#' Save a single large heatmap with all ajdusted p-values
+## -------------------------------------------------------------------------------------------------------------------------
 pvalHeatMap.big.adj.file = file.path(outDir, paste0("bigList_heatmap_fdr.adj-p-values_", taxaLevel, ".pdf"))
 pdf(file=pvalHeatMap.big.adj.file,
     height = 3 + nrow(m.all) / 6,
     width = 5 + ncol(m.all) / 6)
 pvalTableToHeatMap(m.all.adj, title="the big heatmap - fdr-adjusted p-values")
 dev.off()
-```
 
-### p-value histograms
-
-Draw p-value histograms for all variables.
-```{r}
+#' 
+#' ### p-value histograms
+#' 
+#' Draw p-value histograms for all variables.
+## -------------------------------------------------------------------------------------------------------------------------
 pvalHist = function(pvalTable, title="", pdfName=title, saveToFolder=outDir, taxalevel=taxaLevel){
     longTab = cbind(taxon=row.names(pvalTable), pvalTable) %>% 
         pivot_longer(cols=-taxon, names_to = "variable", values_to = "value")
@@ -879,13 +879,13 @@ pvalHist = function(pvalTable, title="", pdfName=title, saveToFolder=outDir, tax
     }
     
 }
-```
 
-
-```{r}
+#' 
+#' 
+## -------------------------------------------------------------------------------------------------------------------------
 pvalHist(m.all, "bigList")
-```
 
-```{r}
+#' 
+## -------------------------------------------------------------------------------------------------------------------------
 sessionInfo()
-```
+
