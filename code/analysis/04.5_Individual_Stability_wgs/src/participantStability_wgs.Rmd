@@ -1,0 +1,900 @@
+---
+title: "T1 to T2 correlations"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_depth: 4
+---
+
+```{r include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Core questions:
+
+I expect that a the relative abundance of taxa is similar between two samples from the same patient.  I expect the two samples to be correlated. Not sure how much, but more than a random pair of samples.  And I expect that this correlation is inversely related to the amount of time between the two samples.
+
+Do the data agree with these expectations?
+
+All comments made in this markdown are based on the SPECIES level.
+
+# Setup
+
+### libraries
+
+```{r results = "hold"}
+tellme <- function(name){print(paste0("Package ", name, " version: ", packageVersion(name)))}
+
+library(tidyr); tellme("tidyr")
+suppressPackageStartupMessages(library(dplyr)); tellme("dplyr")
+library(ggplot2); tellme("ggplot2")
+library(ggrepel); tellme("ggrepel")
+```
+### Colors
+
+A named vector of color vectors.  Most of these match the previous paper. 
+```{r, fig.height=4, fig.width=2, echo=FALSE, include=FALSE}
+themeFile = "../../input/themes.R"
+if (file.exists(themeFile)){
+    source(themeFile)
+    myColorPalette = getColorPalette()
+    displayColorPalette(myColorPalette)
+}else{
+    myColorPalette = c(
+        # timepoint
+        nonED = "#1B9E77",
+        HC = "#1B9E77",
+        T1 = "#D95F02",
+        AN.AD = "#D95F02",
+        T2 = "#7570B3",
+        AN.DS = "#7570B3",
+        # site
+        Denver = "#1F78B4",
+        ACUTE = "#1F78B4",
+        UNC = "#F0027F",
+        CEED = "#F0027F",
+        FARGO = "coral",
+        # subgroups indicating site AND group/timepoint
+        UNC_HC = "#B2DF8A",
+        Denver_HC = "#33A02C",
+        UNC_T1 = "#FDBF6F",
+        UNC_T2 = "#FF7F00",
+        Denver_T1 = "#CAB2D6",
+        Denver_T2 = "#6A3D9A"
+    )
+    # plot.new(); legend(legend=names(myColorPalette), 
+    #                    col=myColorPalette, bty="n", x="center", pch=15, cex=2)
+    
+    colorKey = data.frame(color=myColorPalette, key=names(myColorPalette))
+    ggplot(data=colorKey, aes(x=1, y = 1:nrow(colorKey), fill=key, label=key)) +
+        geom_tile() +
+        scale_fill_manual(values = myColorPalette) +
+        theme_void()+
+        theme(legend.position="none") + 
+        geom_text()
+}
+
+# Use the theme_classic() ggplot theme unless otherwise indicated.
+theme_set(theme_classic())
+```
+
+Pick a taxonomic level. This can be set to other levels to generate the results, but all comments about results made in this document are based on the results with species level data.
+```{r}
+taxaLevel = "species"
+```
+
+
+Direct output
+```{r}
+outDir = file.path("..", "output", taxaLevel)
+suppressWarnings( dir.create(outDir, recursive = T) )
+```
+
+Output will be saved to: ``r outDir``
+
+Function to display taxa names.
+```{r}
+displayTaxonName = function(name, level=NULL){
+    bits = unlist(strsplit(name, split="__"))
+    lastBit = bits[length(bits)]
+    if (!is.null(level)){
+        lastBit = paste(level, lastBit, sep=": ")
+    }
+    return(lastBit)
+}
+```
+
+
+# Main
+
+## Read counts data
+
+Find the counts file.
+```{r}
+input=c(
+    domain = "../../input/counts-tables/filtered-counts_level-1_domain.csv",
+    phylum = "../../input/counts-tables/filtered-counts_level-2_phylum.csv",
+    class = "../../input/counts-tables/filtered-counts_level-3_class.csv",
+    order = "../../input/counts-tables/filtered-counts_level-4_order.csv",
+    family = "../../input/counts-tables/filtered-counts_level-5_family.csv",
+    genus = "../../input/counts-tables/filtered-counts_level-6_genus.csv",
+    species = "../../input/counts-tables/filtered-counts_level-7_species.csv")
+
+# taxaLevel = "class"
+countsFile = input[taxaLevel]
+```
+
+We are looking at the ``r taxaLevel`` level, so we will read file ``r countsFile``.
+
+Read the file.
+```{r}
+countsAndMeta = read.csv(countsFile)
+dim(countsAndMeta)
+```
+
+Filter out unrelated samples (anything where "Person" is not "Kylie").
+```{r}
+# already done, but double check
+if (any(countsAndMeta$Person != "Kylie")){
+    message("Filtering out unrelated samples.")
+    countsAndMeta = countsAndMeta %>% filter(Person == "Kylie")
+}else{
+    message("No unrelated samples.")
+}
+```
+
+```{r echo=FALSE, include=FALSE}
+# Make a table with all the metadata that came with the artifact.
+# No real need to save this.
+
+# qzaMeta = countsAndMetaALL %>% select(id.orig, StudyID, Timepoint, Person)
+# write.table(qzaMeta, file=file.path(outDir, paste(taxaLevel, "_artifact_metatdata.txt")), 
+#             quote=F, sep="\t", row.names = F)
+```
+
+This data includes some metadata.
+```{r}
+metaCols = c("id.orig", "BarcodeNumber", "BarcodeSequenceFull", "BarcodeSequence", "LinkerPrimerSequence", "StudyID", "Timepoint", "Person", "index")
+metaCols
+```
+
+All the other columns should look like taxa names. Look at the first few characters. How often does that prefix appear? Make sure these look like taxa, not missed-meta-data.
+```{r}
+dataCols = setdiff(colnames(countsAndMeta), metaCols)
+table(substr(dataCols, 0, 11))
+```
+
+
+Split the meta data and counts
+```{r}
+metaCols = c("id.orig", "BarcodeNumber", "BarcodeSequenceFull", "BarcodeSequence", "LinkerPrimerSequence", "StudyID", "Timepoint", "Person", "index")
+counts = countsAndMeta %>% select(-all_of(metaCols))
+row.names(counts) = countsAndMeta$id.orig
+key = countsAndMeta %>% select(id.orig, StudyID, Timepoint)
+```
+
+### normalize counts
+
+Normalize counts.
+```{r}
+lognorm <- function(table, log10.do = TRUE){
+  # table - a table with rows for samples and columns for features
+  #         samples names are row names.
+  #         feature names are column names.
+  #         the table values are all numeric
+  sampleSums = rowSums(table)
+  meanSampleDepth = mean(sampleSums)
+  sampleProportion = t( apply(table, 1, function(row) row / sum(row)) )
+  t2 = sampleProportion * meanSampleDepth
+  if (log10.do) t3 = log10( t2 + 1 )
+  else t3 = t2 + 1
+  return( t3 )
+}
+
+counts.norm = lognorm(counts)
+```
+
+
+## Read meta data.
+
+Read the original metadata file.
+```{r}
+meta = read.delim("../../input/meta/ANIGMA-metadata.txt") %>%
+  select(PARTICIPANT.ID, LOCATION, TIMEPOINT, AGE, SUBTYPE, BMI, 
+         STAI_Y1, STAI_Y2, STAI_TOTAL, PSS, DAYS_TREAT, Weight_kg, DNA.ID, DUR_ILLNESS_YRS) %>%
+  filter(DNA.ID %in% countsAndMeta$id.orig)
+row.names(meta) = meta$DNA.ID
+dim(meta)
+```
+
+Check metadata.
+```{r}
+if (any(!is.na(meta$DAYS_TREAT[meta$TIMEPOINT=="HC"]))){
+    message("For any Healthy Control participant, the DAYS_TREAT should be NA (not 0).")
+    meta$DAYS_TREAT[meta$TIMEPOINT=="HC"] = NA
+}else{
+    message("Ah, good, for Healthy Control participants, the DAYS_TREAT is NA (not 0).")
+}
+```
+
+Check that the meta data that came with the qiime artifact matches up to the main project meta data.
+```{r}
+m = merge(meta, key, by.x="DNA.ID", by.y="id.orig")
+table(m$PARTICIPANT.ID == m$StudyID)
+table(m$TIMEPOINT == m$Timepoint)
+```
+
+The metadata from the qiime artifact and the metadata for the project match up. There is one that has an error in the qiime artifact metadata. That's fine. We'll use the project metadata moving forward.
+```{r}
+m[which(m$TIMEPOINT != m$Timepoint), c("PARTICIPANT.ID", "TIMEPOINT", "BMI", "Timepoint")]
+```
+
+### Previous feature engineering
+
+Read the diffs metadata - data where diffs have been calculated.
+```{r}
+prevModule = dir(path="../..", pattern="Participant_Metadata", full.names = T)
+diffsFile = file.path(prevModule, "output", "ANIGMA-metadata_by_AN_participant.txt")
+diffs = read.delim(diffsFile)
+row.names(diffs) = diffs$PARTICIPANT.ID
+dim(diffs)
+```
+
+Read in modified metadata from: ``r diffsFile``
+
+This table has ``r nrow(diffs)`` rows and ``r ncol(diffs)`` columns.
+
+Match this data with the corresponding DNA ID for T1 and T2.
+```{r}
+diffKey = meta %>% 
+    select(PARTICIPANT.ID, TIMEPOINT, DNA.ID) %>%
+    pivot_wider(id_cols = PARTICIPANT.ID, names_from = TIMEPOINT, values_from = DNA.ID, names_prefix = "DNA.ID.") %>%
+    select(-DNA.ID.HC)
+diffs = merge(diffs, diffKey, all.x=T, by="PARTICIPANT.ID")
+```
+
+
+## merge
+
+Make a scrambled version. We can use this to verify that we see null results, and our tests are not inherently flawed. Is this run scrambled?
+```{r}
+if (FALSE){
+    scramIDs = sample(meta$DNA.ID, size=nrow(meta), replace = FALSE)
+    meta$DNA.ID = scramIDs
+    message("This is a run with scrambled data!!!")
+}else{
+    message("No, the data is not scrambled. This is a real-data run.")
+}
+```
+
+Merge the metadata and the normalized counts data.
+```{r}
+data = merge(counts.norm, meta, by.x=0, by.y="DNA.ID")
+dim(data)
+```
+
+Make sure Patient ID is not treated as a numerical value.
+```{r}
+data$PARTICIPANT.ID = as.character(data$PARTICIPANT.ID)
+```
+
+## sample correlations
+
+All sample correlations.
+```{r cor.co}
+cor.co = cor(t(counts.norm), use="pairwise.complete.obs", method = "pearson") %>%
+    as.data.frame()
+```
+
+Make some logical order for the samples. Order by TIMPOINT, then by LOCATION, then id.
+```{r}
+meta = meta %>% arrange(TIMEPOINT, LOCATION, PARTICIPANT.ID)
+dna.id.order = meta$DNA.ID
+cor.co = cor.co[dna.id.order, dna.id.order]
+```
+
+These values are used in a plot further down.
+```{r}
+cor.co.lines = c(102, 183)
+cor.co.labels = "HC, T1, T2"
+# should be effectively identical to:
+cor.co.lines = which(!duplicated(meta$TIMEPOINT)) - 1
+cor.co.labels = paste0(meta$TIMEPOINT[ which(!duplicated(meta$TIMEPOINT)) ], collapse=", ")
+```
+
+
+### Limit correllations
+
+Limit that to only include rows for T1 samples, and columns for T2 and HC.  We will lose the T2 to HC correlations, but that is ok.
+```{r cor.rect}
+meta = meta %>% 
+    arrange(DAYS_TREAT, PARTICIPANT.ID) %>%
+    filter(!is.na(DNA.ID))
+
+T1 = meta %>% filter(TIMEPOINT == "T1") %>% 
+    select(DNA.ID, PARTICIPANT.ID) %>% mutate(across(everything(), as.character))
+T2 = meta %>% filter(TIMEPOINT == "T2") %>% 
+    select(DNA.ID, PARTICIPANT.ID) %>% mutate(across(everything(), as.character))
+HC = meta %>% filter(TIMEPOINT == "HC") %>% 
+    select(DNA.ID, PARTICIPANT.ID) %>% mutate(across(everything(), as.character))
+
+cor.rect = cor.co[T1$DNA.ID, c(T2$DNA.ID, HC$DNA.ID)]
+row.names(cor.rect) = T1$PARTICIPANT.ID
+names(cor.rect) = c(T2$PARTICIPANT.ID, HC$PARTICIPANT.ID)
+
+unmatchedT1 = setdiff(T1$PARTICIPANT.ID, T2$PARTICIPANT.ID)
+matched=intersect(T1$PARTICIPANT.ID, T2$PARTICIPANT.ID)
+unmatchedT2 = setdiff(T2$PARTICIPANT.ID, T1$PARTICIPANT.ID)
+
+cor.rect = cor.rect[c(matched, unmatchedT1),
+                    c(matched, unmatchedT2, HC$PARTICIPANT.ID)]
+```
+
+### Days treated (part 1)
+
+Hypothesis: T1 and T2 samples for the same patient will be more correlated than any random pair of samples.  But this increased correlation will decrease with increased time separation between samples.
+
+```{r daysCor}
+daysCor = meta %>% 
+    select(PARTICIPANT.ID, DAYS_TREAT, LOCATION, SUBTYPE) %>% 
+    filter(PARTICIPANT.ID %in% T1$PARTICIPANT.ID) %>%
+    filter(PARTICIPANT.ID %in% T2$PARTICIPANT.ID) %>%
+    filter(!duplicated(PARTICIPANT.ID)) %>% 
+    mutate(across(everything(), as.character))
+
+row.names(daysCor) = daysCor$PARTICIPANT.ID
+daysCor$cor = NA
+
+for (pID in daysCor$PARTICIPANT.ID){
+    if (pID %in% row.names(cor.rect) & pID %in% names(cor.rect)){
+        daysCor[pID, "cor"] = cor.rect[pID, pID]
+    }
+}
+```
+
+```{r scatterDaysTreat}
+daysCor$DAYS_TREAT = as.numeric(daysCor$DAYS_TREAT)
+
+ggplot(daysCor, aes(x=DAYS_TREAT, y=cor, col=LOCATION)) +
+    scale_colour_manual(values = myColorPalette) +
+    geom_point()
+ggplot(daysCor, aes(x=DAYS_TREAT, y=cor, col=LOCATION)) +
+    scale_colour_manual(values = myColorPalette) +
+    geom_point() +
+    facet_wrap("LOCATION", ncol = 1)
+```
+
+I expected to see a stronger relationship between DAYS_TREAT and reduced correlation between time points.
+
+No stats yet - lets figure out what's up with some of these low values. We may need to fix something.
+
+JK, lets do some stats. Use cor.test() to test correlations corresponding to the plots above.  Anything below 0.05?
+```{r}
+pvals.prefilter = c()
+
+method = "pearson"
+
+pvals.prefilter["all.cor"] = cor.test(daysCor$cor, daysCor$DAYS_TREAT, method=method)$p.value
+
+for (loc in unique(daysCor$LOCATION)){
+    subCor = daysCor %>% filter(LOCATION == loc)
+    #
+    name = paste0(loc, ".cor")
+    pvals.prefilter[name] = cor.test(subCor$cor, subCor$DAYS_TREAT, method=method)$p.value
+}
+
+table(pvals.prefilter < .05)
+pvals.prefilter
+```
+
+We fail to reject the null hypothesis, at any individual site, and when considering all sites together. But we still have some weird bits here, we may test again after filtering.
+
+Most same-person correlations are pretty strong, I see values roughly .7 - .9, but some are lower.  Are these lower correlations still better than the correlation between that same T1 sample and other samples?  
+
+### Relative correllation
+
+For each T1 sample, calculate the fraction of HC samples and T2 samples that have a worse correlation than the corresponding T2 sample.  If a person is very stable, we would expect values of (near) 1.  
+```{r betterThanFrac}
+daysCor$betterThanHC = NA
+daysCor$betterThanT2 = NA
+daysCor$HC.median.cor = NA
+daysCor$T2.median.cor = NA
+
+plotList = list()
+
+for (pID in daysCor$PARTICIPANT.ID){
+    selfCor = cor.rect[pID,pID]
+    hcCor = cor.rect[pID, HC$PARTICIPANT.ID]
+    t2Cor = cor.rect[pID, T2$PARTICIPANT.ID]
+    daysCor[pID,"betterThanHC"] = sum(selfCor >= hcCor) / length(hcCor)
+    daysCor[pID,"betterThanT2"] = sum(selfCor >= t2Cor) / length(t2Cor)
+    daysCor[pID,"HC.median.cor"] = median(unlist(hcCor))
+    daysCor[pID,"T2.median.cor"] = median(unlist(t2Cor))
+    
+    plotDF = data.frame(category=c(rep("HC", length(hcCor)), 
+                                   c(rep("T2", length(t2Cor)))),
+                        corOther=c(as.numeric(hcCor[1,]), as.numeric(t2Cor[1,])),
+                        ID=c(names(hcCor), names(t2Cor)))
+    lineColor = ifelse(daysCor[pID,"betterThanT2"] < 1, "red", "black")
+    ploti = ggplot(plotDF, aes(x=category, y=corOther, label=ID)) +
+        ylim(0,1) +
+        geom_boxplot(outlier.alpha = 0) +
+        geom_jitter(height = 0) +
+        geom_hline(yintercept = selfCor, col=lineColor) + 
+        ggtitle(pID)
+    
+    ttestP = t.test(hcCor, t2Cor)$p.value
+    if (ttestP < 0.01){
+        atX = ifelse(mean(as.numeric(hcCor[1,]), na.rm=T) > mean(as.numeric(t2Cor[1,]), na.rm=T),"HC", "T2")
+        ploti = ploti + annotate("label", y=-Inf, x=atX, 
+                                 label=paste0("highter values\nwith p=", signif(ttestP,3)), 
+                                 vjust=0, fill="dodgerblue", alpha=.2)
+    }
+    plotList[[pID]] = ploti
+    # show(ploti)
+}
+
+daysCor$relTo.HC.med.Cor = daysCor$cor / daysCor$HC.median.cor
+daysCor$relTo.T2.med.Cor = daysCor$cor / daysCor$T2.median.cor
+
+head(daysCor)
+```
+
+That is just the first few rows of the table. Across all rows, are all 'betterThanHC' and 'betterThanT2' values 1? If not, what other values do we see?
+```{r}
+table(round(daysCor$betterThanHC,2))
+table(round(daysCor$betterThanT2,2))
+```
+
+First lets deal with the ones that are behaving like we expect (betterThanHC = 1, and betterThanT2 = 1). Then we'll explore the rest.
+
+### Days treated (part2)
+
+To answer our question "Does this increased correlation decrease with more time separation between samples?" lets only consider the samples that DO have an increased correlation between T1 and T2 (relative to HC samples or other T2 samples). Rather than draw the correlation, lets draw he correlation-increase. That is, the T1-T2 sample correlation / the median correlation between that T1 sample and the other T2 samples.
+
+```{r}
+# daysCor.orig = daysCor
+daysCor.1 = daysCor %>% 
+    filter(betterThanHC == 1) %>% 
+    filter(betterThanT2 == 1)
+
+under1 = setdiff(daysCor$PARTICIPANT.ID, daysCor.1$PARTICIPANT.ID)
+```
+
+That excludes these ``r length(under1)`` participants: ``r paste0(under1, collapse=", ")``
+
+**Since we have removed points that deviate from one of our expectations, anything we find has to be taken with an appropriate grain of salt, and we'll have to really justify what we have removed.**
+
+```{r fig.width=4, fig.height=3}
+ggplot(daysCor.1, aes(x=DAYS_TREAT, y=cor, col=LOCATION)) +
+    scale_colour_manual(values = myColorPalette) +
+    geom_point() + 
+    ggtitle("Excluding some samples")
+```
+
+```{r fig.width=3, fig.height=6}
+last_plot() +
+    facet_wrap("LOCATION", ncol = 1, scales = "free")
+```
+
+```{r fig.width=3, fig.height=3}
+ggplot(daysCor.1, aes(x=DAYS_TREAT, y=relTo.HC.med.Cor, col=LOCATION)) +
+    scale_colour_manual(values = myColorPalette) +
+    geom_point()
+```
+```{r fig.width=3, fig.height=6}
+last_plot() + facet_wrap("LOCATION", ncol=1, scales = "free")
+```
+
+```{r fig.width=3, fig.height=3}
+ggplot(daysCor.1, aes(x=DAYS_TREAT, y=relTo.T2.med.Cor, col=LOCATION)) +
+    scale_colour_manual(values = myColorPalette) +
+    geom_point()
+```
+```{r fig.width=3, fig.height=6}
+last_plot() + facet_wrap("LOCATION", ncol=1, scales = "free")
+```
+
+Visually, I think one of the relTo metrics at either CEED or FARGO looks like it might be correlated.  But I don't know if the stats will support it. 
+
+Use cor.test to do the test corresponding to each scatter plot above.  Do ANY of them come up as significant? (p < 0.05)
+
+```{r}
+pvals = c()
+
+method = "pearson"
+
+pvals["all.relToHC"] = cor.test(daysCor.1$relTo.HC.med.Cor, daysCor.1$DAYS_TREAT, method=method)$p.value
+pvals["all.relToT2"] = cor.test(daysCor.1$relTo.T2.med.Cor, daysCor.1$DAYS_TREAT, method=method)$p.value
+pvals["all.cor"] = cor.test(daysCor.1$cor, daysCor.1$DAYS_TREAT, method=method)$p.value
+
+for (loc in unique(daysCor.1$LOCATION)){
+    subCor = daysCor.1 %>% filter(LOCATION == loc)
+    #
+    name = paste0(loc, ".relToHC")
+    pvals[name] = cor.test(subCor$relTo.HC.med.Cor, subCor$DAYS_TREAT, method=method)$p.value
+    name2 = paste0(loc, ".relToT2")
+    pvals[name2] = cor.test(subCor$relTo.T2.med.Cor, subCor$DAYS_TREAT, method=method)$p.value
+    name3 = paste0(loc, ".cor")
+    pvals[name3] = cor.test(subCor$cor, subCor$DAYS_TREAT, method=method)$p.value
+}
+
+pvals
+table(pvals < .05)
+```
+
+Seeing a p-value of 0.0044 for the ACUTE.cor test, and no other values below 0.05.  That's a little surprising (and discouraging) given that ACUTE has the narrowest range of DAYS_TREAT values. I tried this with method="spearman", method="pearson", and method="kendall". The exact p-values change, but in all cases, ACUTE.cor is the only one under 0.05.  If this was a matter of sample size, I would expect to see it in CEED as well.  And we had to exclude samples to get there. We fail to reject the null. 
+
+If there is a relationship between correlations and DAYS_TREAT, we are just not seeing it.
+
+### Median correlations
+
+As a side note: those two 'relTo' metrics are basically the same, right? A given T1 samples correlations relative to the median correlation with HC samples, or relative to the median correlation with T2 samples?
+
+For each T1 sample, consider the median correlation with HC samples and with T2 samples. Are these similar?
+
+```{r}
+ggplot(data=daysCor, aes(x=HC.median.cor, y=T2.median.cor, label=PARTICIPANT.ID, col=LOCATION)) +
+    scale_colour_manual(values = myColorPalette) +
+    geom_abline(slope=1, intercept = 0, linetype=2, col="gray") + 
+    annotate("text", x=Inf, y=-Inf, vjust=-1, hjust=1, col="gray", 
+             label="dashed line is unity") +
+    geom_point() +
+    geom_text_repel(show.legend = F)
+```
+
+Hmm. Yes quite similar, but... When the correlation with groups is poor (less than about .5), the correlation with the T2 group is slightly better than the HC group. When the correlation with groups is good (more than about .5), the correlation with the HC group is slightly better. We can look into that more in the uniqueness analysis.
+
+Do either of these metrics (the median HC correlation or the median T2 correlation) relate to the correlation between that T1 sample and its own matched T2?
+
+The T2 median:
+
+```{r  fig.width = 4, fig.height=3}
+ggplot(data=daysCor.1, aes(x=T2.median.cor, y=cor, label=PARTICIPANT.ID, col=LOCATION)) +
+    scale_colour_manual(values = myColorPalette) +
+    geom_point() +
+    # geom_text_repel(show.legend = FALSE)+
+    ggtitle("Excludes some points")
+```
+```{r fig.width = 4, fig.height=3}
+ggplot(data=daysCor, aes(x=T2.median.cor, y=cor, label=PARTICIPANT.ID, col=LOCATION)) +
+    scale_colour_manual(values = myColorPalette) +
+    geom_point() +
+    # geom_text_repel(show.legend = FALSE) +
+    ggtitle("All points")
+```
+
+The HC median:
+
+```{r  fig.width = 5, fig.height=4}
+plotWithCor = function(df, title=""){
+    ct.df = cor.test(df$HC.median.cor, df$cor)
+    
+    ggplot(data=df, aes(x=HC.median.cor, y=cor, label=PARTICIPANT.ID, col=LOCATION)) +
+        scale_colour_manual(values = myColorPalette,
+                            name=paste0("cor: ", round(ct.df$estimate, 2), "\n",
+                                        "p-value: ", signif(ct.df$p.value,3), "\n",
+                                        "\n",
+                                        "LOCATION")) +
+        geom_point() +
+        geom_text_repel(show.legend = FALSE) +
+        # annotate("text", alpha=.8, x=Inf, y=-Inf, vjust=-1, hjust=1, 
+                 # label=paste0("cor: ", round(ct.df$estimate, 2), "; p-value: ", signif(ct.df$p.value,3))) +
+        ggtitle(title)
+}
+plotWithCor(daysCor.1, title="Excludes some points")
+```
+
+That's a pretty good correlation, visually and statistically, seeing p-value of 2e-04. The But lets keep in mind that that excludes some points. What if we keep all points?
+
+```{r fig.width = 5, fig.height=4}
+plotWithCor(daysCor, title="all points")
+```
+
+I think the samples that are potentially-swapped (see section "poorly matched samples") are really killing it. What if we exclude only those?
+```{r}
+daysCorNoSwap = daysCor %>% 
+    filter(PARTICIPANT.ID != "469034") %>% 
+    filter(PARTICIPANT.ID != "469024")
+
+plotWithCor(daysCorNoSwap, title="excludes 2 points")
+```
+
+Well that's actually a hair worse. 
+
+I guess cutting away samples that deviate from your expectations really helps make stats align with with what you see. Seeing a p-value of 0.03, I feel like the stats need to be a lot stronger for this to be comment-worthy. Maybe we'll get 4690[2,3]4 figured out and the corrected points will help, or maybe this isn't the real story.
+
+Finally, lets consider each site separately. For acute, we can exclude ONLY the potentially-swapped pair.
+```{r fig.width=4, fig.height=3}
+for (loc in unique(daysCor$LOCATION)){
+    sub = daysCorNoSwap %>% filter(LOCATION == loc)
+    show(plotWithCor(sub, title=loc))
+}
+```
+
+That is still a solid "not quite".
+
+
+The observation that "When the correlation with groups is poor (less than about .5), the correlation with the T2 group is slightly better than the HC group." seems sound. Its true without excluding samples, and it disappears when I use scrambled data.
+
+Looking for a relationship between the median correlation to HC samples and the T1-T2 matched correlation did not find anything, and its an idea that has some inherent problems. When THAT was done with scrambled data, the p-values were very significant, which makes sense: The median correlation between some sample and a group, is a good predictor of the correlation between that sample and some random sample from the same pool. We should keep that in mind any time we try to test the idea that a T1 sample with a lot of correlation to the HC group is more likely to be stable (ie, high correlation to its own T2 sample).  We would also want to be sure that we are just seeing shadows of the T1 sample quality.
+
+
+### Poorly matched pairs
+
+When testing what proportion of samples in a group are worse (lower correlation to a given T1 sample) than the labeled match, not all values are "1". Why? Hypotheses:
+
+ * Maybe sometimes, by chance, some other sample happens to be closer to someones T1 sample than their own T2 sample?
+ * Maybe some are very unstable, and their own T1 and T2 samples are very different.
+ * Maybe the correlations between matching T1 and T2 samples are only just barely better than any random sample?
+ 
+Show a few of those visually.
+```{r}
+for (i in 1:5){
+    show(plotList[[i]])
+}
+```
+
+Ok, those looks like we expect.  The line goes through the correlation value for the T2 match for a given T1 sample, and that is the best sample-to-sample correlation for that T1 sample.
+
+For those that did **not** have a correlation to their own sample that was far better than all the rest, is the betterThenHC score generally better / worse / same as the betterThanT2 score? What do the plots look like for those participants?
+
+```{r}
+# plot(daysCor$betterThanHC, daysCor$betterThanT2)
+ggplot(data=daysCor, aes(x=betterThanHC, y=betterThanT2, label=PARTICIPANT.ID)) +
+    geom_abline(slope=1, intercept = 0, linetype=2, col="gray") + 
+    geom_point() +
+    geom_text_repel()
+```
+
+Some participants have **remarkably poor** correlation between their T1 and T2 taxa. Here we see that some pairs have a T1 to T2 correlation is actually worse than the correlation between the T1 sample and any random T2 or HC sample.  That suggests that maybe we don't have these pairs matched up correctly.
+
+```{r poorCor}
+poorCor = daysCor %>% filter(betterThanT2 < 1) %>% select(PARTICIPANT.ID) %>% unlist
+poorCor
+```
+
+What do the boxplots look like for those?
+```{r poorCorBoxPlots}
+for (pID in poorCor){
+    show(plotList[[pID]] + geom_text_repel())
+}
+```
+
+In some cases (participant 469024 and 469034), it looks like there IS a sample that is actually a much better match than the rest. I am inclined to think that 469024 and 469034 got switched at one time point. ---actually, we beleive there may have been a label mistake, and we have corrected it. And now those points are not in the poor matches set.
+
+In other cases, I don't see any better candidate, it just looks like the T1 to T2 pairing we have is not ... very much of a match.
+
+Lets save these plots to a pdf, with 469024 and 469034 at the top and then the rest.
+```{r}
+boxplotPdf = file.path(outDir, "best-cor-to-T1.pdf")
+pdf(boxplotPdf, width = 5, height = 5)
+show(plotList[["469024"]] + geom_text_repel())
+show(plotList[["469034"]] + geom_text_repel())
+for (pID in setdiff(names(plotList), c("469024", "469034") ) ){
+    show(plotList[[pID]] + geom_text_repel())
+}
+dev.off()
+message("Saved images to: ", boxplotPdf)
+```
+
+
+So far, we've looked at these matches from the T1 samples' perspective. Lets take a wider view.
+
+### Correllation Heat Map
+
+All correlations heatmap.
+```{r pvalHeat}
+correlationTableToHeatMap = function(cor.table,
+                                     pdfFilename=NULL, 
+                                     title="correlations", 
+                                     midpointVal=.6, blueVal=.6, redVal=1, 
+                                     orderBySimilarity=FALSE,
+                                     vlines=c(), hlines=c(),
+                                     xlab="T2, HC", ylab="T1",
+                                     displayName.FUN=c){
+    # cor.table - a data frame with or matrix with row names and column names, and numeric values.
+    # title - title for the plot
+    # pdfFilename - if supplied, image is saved to a file.
+    # blueVal - values worse than this will all be shown in blue.
+    # redVal - values higher than this will be shown in red.
+    # midpointVal - these will be shown in white, as a middle point between the blue and red gradients.
+    # all p-values better than this will be shown in solid red.
+    
+    if(orderBySimilarity){
+        reorder_cormat <- function(cormat){
+            # Use correlation between variables as distance
+            dd <- as.dist((1-cormat)/2)
+            hc <- hclust(dd)
+            cormat <-cormat[hc$order, hc$order]
+        }
+        cor.table = reorder_cormat(cor.table)
+    }
+    
+    # max out at limits
+    cor.table[cor.table > redVal] = redVal
+    cor.table[cor.table < blueVal] = blueVal
+    longTab = cor.table %>% 
+        mutate(taxon= sapply( row.names(cor.table), displayName.FUN) ) %>%
+        pivot_longer(cols=-taxon, names_to = "var", values_to="pval")
+    longTab$var = factor(x=as.character(longTab$var), levels=names(cor.table))
+    longTab$taxon = factor(x=as.character(longTab$taxon), levels=row.names(cor.table))
+    gp = ggplot(longTab, aes(x=var, y=taxon, fill=pval)) +
+        geom_tile(col="gray") +
+        scale_fill_gradient2(low = "blue", high = "red", mid = "white",
+                             midpoint = midpointVal,
+                             limit = c(blueVal,redVal),
+                             space = "Lab",
+                             name="correlation",
+                             na.value = gray(.9)) +
+        theme_minimal()+ # minimal theme
+        ggtitle(title) +
+        xlab(xlab) +
+        ylab(ylab) +
+        theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                         size = 8, hjust = 1)) +
+        coord_fixed()
+    
+    if (!orderBySimilarity){
+        if (length(hlines) > 0){
+            gp = gp + geom_hline(yintercept = hlines + .5)
+        }
+        if (length(vlines) > 0){
+            gp = gp + geom_vline(xintercept = vlines + .5)
+        }
+    }
+    
+    if (!is.null(pdfFilename)){
+        # pdf(pdfFilename, width=30, height = 25)
+        pdf(pdfFilename, 
+            height = 3 + nrow(cor.table) / 8,
+            width = 5 + ncol(cor.table) / 8)
+        show(gp)
+        dev.off()
+        message("See file: ", pdfFilename)
+    }
+    
+    return(gp)
+}
+
+correlationTableToHeatMap(cor.co, 
+                          xlab=cor.co.labels, ylab=cor.co.labels,
+                          hlines = cor.co.lines,
+                          vlines = cor.co.lines)
+```
+
+To be clearer, show a a heatmap that only has rows for T1 samples, grouped by weather or not they have a matched T2 sample; and only include columns for T2 and HC samples, and group the T2's based on weather they have a matched T1.
+```{r}
+correlationTableToHeatMap(cor.rect, file.path(outDir, "correlation-heatmap_subset.pdf"), 
+                          xlab="T2 matched, T2 unmatched, HC", ylab="T1 matched, T1 unmatched",
+                          hlines=c(length(matched)),
+                          vlines=c(length(matched), length(c(matched, unmatchedT2)) ) )
+```
+
+Using that same layout, lets consider the best match from the T2 perspective. In the boxplots above, we considered the best match from the T1 perspective.  For each column, normalize the correlation to be relative to the single **best** correlation value for that T2 sample (or HC sample).  The sample with the best correlation will have a value of 1 (regardless of how good or bad the correlation is). The second best will have a value less than one. 
+
+If the second best was very close to the best, then it might have a value very close to 1.  If it was 95% as good as the first one, then its value here would be .95.  That might be because the best was .88 and the second best was .84, or it might be because the best one was .44 and the second best was .42.  
+
+Draw this map to only show values of .9 and up (anything less can fade to white). We are only interested in seeing the best match, and others that are are >90% as good of a match as that one.
+
+With this view, I expect that samples that have a matched T1 will have one solid point (value=1) and otherwise be pretty clean. But for samples that do not have a matched T1, I expect them to have several points with a range of pink-red, because the very best is only about as good as several others.
+```{r}
+normByBest = data.frame(apply(cor.rect, 2, FUN=function(row){row / max(row)}))
+
+correlationTableToHeatMap(normByBest, 
+                          file.path(outDir, "correlation-heatmap_normByT2HC.pdf"), midpointVal=.90, blueVal=.90, redVal=1, 
+                          title="Correlation relative to best match vertically",
+                          xlab="T2 matched, T2 unmatched, HC", ylab="T1 matched, T1 unmatched",
+                          hlines=c(length(matched)),
+                          vlines=c(length(matched), length(c(matched, unmatchedT2)) ) )
+```
+## Within group correlations
+
+In the earlier heatmaps, we kept the order of the table so we could draw lines between groups.  Here, allow the samples to be re-ordered based on similarity so we can get an idea of group structure.
+
+The HC group.
+```{r fig.width=8, fig.height=8}
+cor.co.hc = cor.co[HC$DNA.ID, HC$DNA.ID] 
+hc.med = median(cor.co.hc[cor.co.hc < 1])
+
+correlationTableToHeatMap(cor.co.hc, 
+                          orderBySimilarity = T,
+                          title=paste("medain non-self correlation: ", round(hc.med,2)),
+                          xlab="HC", ylab="HC")
+```
+
+Some HC samples are like each other.  And some are not very much like any of the rest.
+
+The T1 group.
+```{r fig.width=8, fig.height=8}
+cor.co.t1 = cor.co[T1$DNA.ID, T1$DNA.ID] 
+t1.med = median(cor.co.t1[cor.co.t1 < 1])
+
+correlationTableToHeatMap(cor.co.t1, 
+                          orderBySimilarity = T,
+                          title=paste("medain non-self correlation: ", round(t1.med,2)), 
+                          xlab="T1", ylab="T1")
+```
+
+The T2 group.
+```{r fig.width=8, fig.height=8}
+cor.co.t2 = cor.co[T2$DNA.ID, T2$DNA.ID] 
+
+t2.med = median(cor.co.t2[cor.co.t2 < 1])
+
+correlationTableToHeatMap(cor.co.t2, 
+                          orderBySimilarity = T,
+                          title=paste("medain non-self correlation: ", round(t2.med,2)), 
+                          xlab="T2", ylab="T2")
+```
+
+# Conclusions
+
+1 - That diagonal line where T1 meets T2 matched samples makes for a very satisfying sanity check.
+
+2 - Need to see if we might need to fix something with 469024 and 469034. (Kylie is looking into this.)
+
+3 - Regarding my hypothesis: "T1 and T2 samples for the same patient will be more correlated than any random pair of samples.  But this increased correlation will decrease with increased time separation between samples." :
+
+  * Matched samples are more correlated to each other than either is to any random sample--most of the time, but not always.
+  * Although we can get a significant p-value (0.004) between the paired correlations and the DAYS_TREAT; BUT ONLY at one site (acute) and ONLY if we exclude all samples that deviate from our expectation (the expectation that the matched T2 sample will be the most correlated sample to the corresponding T1). That's too much of a caveat.
+  * We have failed to reject the null on this one; we should revisit this if any samples are added or changed.
+  
+4 - A preview for uniqueness: 
+
+  * When the median correlation with groups is poor (less than about .5), the correlation with the T2 group is slightly better than the HC group. When the median correlation with groups is good (more than about .5), the correlation with the HC group is slightly better.
+  * Within the HC group, the median non-self correlation is .55; within the T1 and T2 groups, it is .45 and .44 respectively.
+  
+
+# 469024 and 469034
+The team review notes from the wet lab about sample processing batches and the plots here.  Seeing: 
+
+ * the reciprocal best match nature of the 469024 T1 sample to the 469034 T2 sample, and 469034 T1 to 469024 T2, and
+ * the two T1 samples (but not the two T2 samples) were next to each other in processing, and had consecutive DNA.id values and barcodes.
+ 
+This leads us to think that the two T1 samples were switched. The two T2 samples and the meta data are appropriate.  And the best fix is to edit the barcode/dna.id fields in the meta data.
+
+```{r}
+maybeSwapped = meta %>% 
+    filter(PARTICIPANT.ID %in% c("469024", "469034")) %>% 
+    select(PARTICIPANT.ID, TIMEPOINT, DNA.ID)
+maybeSwapped
+```
+
+Show heatmap with just these four samples.
+```{r}
+dnaIDs = maybeSwapped$DNA.ID
+correlationTableToHeatMap(cor.co[dnaIDs, dnaIDs],
+                          xlab="the 4", ylab="all")
+```
+
+It looks like 251 and 231 go together. And 47 and 252 go together.
+In an earlier version of the metadata file, participant 469024 had samples T1=251 and T2=47. 469034 had T1=252 and T2=231.  
+
+All other samples are less good matches to any of these four.
+```{r fig.width=4, fig.height=12, include=FALSE}
+# correlationTableToHeatMap(cor.co[c(dnaIDs, setdiff(row.names(cor.co), dnaIDs)), dnaIDs, ],
+#                           xlab="the 4", ylab="all")
+```
+```{r}
+my4sampmlePalette = c("251"="darkgreen",
+                      "231"="dodgerblue",
+                      "47"="orange",
+                      "252"="darkred")
+cor.co %>% 
+    mutate(other=row.names(cor.co)) %>%
+    select(all_of(dnaIDs), other) %>%
+    pivot_longer(cols=-other, names_to = "sample", values_to = "correlation") %>%
+    ggplot(aes(x=sample, y=correlation, label=other, col=other)) + 
+    scale_colour_manual(values=my4sampmlePalette) +
+    geom_jitter(width = .1, height = 0) +
+    labs(title = "469024 and 469034",
+         caption = "Upon review of this data,\n we decided that DNA.ID 231 most likley belongs with 251, not 47.\nAnd that 252 goes with 47, not 251.")
+# +
+#     geom_text_repel(show.legend = F)
+ggsave(filename = file.path(outDir, "ids-469024-and-469034.png"), device = "png", width = 5, height = 4)
+```
+
+
+
