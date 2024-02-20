@@ -1,0 +1,267 @@
+---
+title: "Ordination"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Setup
+
+### libraries
+
+```{r results = "hold"}
+tellme <- function(name){print(paste0("Package ", name, " version: ", packageVersion(name)))}
+
+library(tidyr); tellme("tidyr")
+suppressPackageStartupMessages(library(dplyr)); tellme("dplyr")
+library(ggplot2); tellme("ggplot2")
+library(ggrepel); tellme("ggrepel")
+library(cowplot); tellme("cowplot")
+```
+### Colors
+
+A named vector of color vectors.  Most of these match the previous paper. 
+```{r, fig.height=4, fig.width=2, echo=FALSE, include=FALSE}
+themeFile = "../../input/themes.R"
+if (file.exists(themeFile)){
+    source(themeFile)
+    myColorPalette = getColorPalette()
+    displayColorPalette(myColorPalette)
+}else{
+    myColorPalette = c(
+        # timepoint
+        nonED = "#1B9E77",
+        HC = "#1B9E77",
+        T1 = "#D95F02",
+        AN.AD = "#D95F02",
+        T2 = "#7570B3",
+        AN.DS = "#7570B3",
+        # site
+        Denver = "#1F78B4",
+        ACUTE = "#1F78B4",
+        UNC = "#F0027F",
+        CEED = "#F0027F",
+        FARGO = "coral",
+        # subgroups indicating site AND group/timepoint
+        UNC_HC = "#B2DF8A",
+        Denver_HC = "#33A02C",
+        UNC_T1 = "#FDBF6F",
+        UNC_T2 = "#FF7F00",
+        Denver_T1 = "#CAB2D6",
+        Denver_T2 = "#6A3D9A"
+    )
+    # plot.new(); legend(legend=names(myColorPalette), 
+    #                    col=myColorPalette, bty="n", x="center", pch=15, cex=2)
+    
+    colorKey = data.frame(color=myColorPalette, key=names(myColorPalette))
+    # ggplot(data=colorKey, aes(x=1, y = 1:nrow(colorKey), fill=key, label=key)) +
+    #     geom_tile() +
+    #     scale_fill_manual(values = myColorPalette) +
+    #     theme_void()+
+    #     theme(legend.position="none") + 
+    #     geom_text()
+}
+
+# Use the theme_classic() ggplot theme unless otherwise indicated.
+theme_set(theme_classic())
+```
+
+Pick a taxonomic level. Take an argument if one is given.
+```{r}
+args = commandArgs(trailingOnly=TRUE)
+if (length(args) > 0){
+    taxaLevel = args[1]
+}else{
+    taxaLevel = "species"
+}
+```
+
+
+Direct output
+```{r}
+outDir = file.path("..", "output", taxaLevel)
+suppressWarnings( dir.create(outDir, recursive = T) )
+```
+
+Output will be saved to: ``r outDir``
+
+# Main
+
+## Read counts data
+
+```{r}
+input=c(
+    domain = "../../input/counts-tables/filtered-counts_level-1_domain.csv",
+    phylum = "../../input/counts-tables/filtered-counts_level-2_phylum.csv",
+    class = "../../input/counts-tables/filtered-counts_level-3_class.csv",
+    order = "../../input/counts-tables/filtered-counts_level-4_order.csv",
+    family = "../../input/counts-tables/filtered-counts_level-5_family.csv",
+    genus = "../../input/counts-tables/filtered-counts_level-6_genus.csv",
+    species = "../../input/counts-tables/filtered-counts_level-7_species.csv")
+
+# taxaLevel = "class"
+countsFile = input[taxaLevel]
+```
+
+We are looking at the ``r taxaLevel`` level, so we will read file ``r countsFile``.
+
+```{r}
+countsAndMeta = read.csv(countsFile)
+dim(countsAndMeta)
+```
+
+Filter out unrelated samples
+```{r}
+# already done, but double check
+if (any(countsAndMeta$Person != "Kylie")){
+    message("Filtering out unrelated samples.")
+    countsAndMeta = countsAndMeta %>% filter(Person == "Kylie")
+}else{
+    message("No unrelated samples.")
+}
+```
+
+```{r echo=FALSE, include=FALSE}
+# Make a table with all the metadata that came with the artifact.
+# No real need to save this.
+
+# qzaMeta = countsAndMetaALL %>% select(id.orig, StudyID, Timepoint, Person)
+# write.table(qzaMeta, file=file.path(outDir, paste0(taxaLevel, "_artifact_metatdata.txt")), 
+#             quote=F, sep="\t", row.names = F)
+```
+
+This data includes some metadata.
+```{r}
+metaCols = c("id.orig", "BarcodeNumber", "BarcodeSequenceFull", "BarcodeSequence", "LinkerPrimerSequence", "StudyID", "Timepoint", "Person", "index")
+```
+
+All the other columns should look like taxa names. Look at the first few characters. How often does that prefix appear?
+```{r}
+dataCols = setdiff(colnames(countsAndMeta), metaCols)
+table(substr(dataCols, 0, 11))
+```
+
+
+Split the meta data and counts
+```{r}
+counts = countsAndMeta %>% select(-all_of(metaCols))
+row.names(counts) = countsAndMeta$id.orig
+key = countsAndMeta %>% select(id.orig, StudyID, Timepoint)
+```
+
+### normalize counts
+
+Normalize counts.
+```{r}
+lognorm <- function(table, log10.do = TRUE){
+  # table - a table with rows for samples and columns for features
+  #         samples names are row names.
+  #         feature names are column names.
+  #         the table values are all numeric
+  sampleSums = rowSums(table)
+  meanSampleDepth = mean(sampleSums)
+  sampleProportion = t( apply(table, 1, function(row) row / sum(row)) )
+  t2 = sampleProportion * meanSampleDepth
+  if (log10.do) t3 = log10( t2 + 1 )
+  else t3 = t2 + 1
+  return( t3 )
+}
+
+# counts.norm = lognorm(counts)
+```
+
+## Read meta data.
+
+Read the original metadata file.
+```{r}
+meta = read.delim("../../input/meta/ANIGMA-metadata.txt") %>%
+  select(PARTICIPANT.ID, LOCATION, TIMEPOINT, AGE, SUBTYPE, BMI, 
+         STAI_Y1, STAI_Y2, STAI_TOTAL, PSS, DAYS_TREAT, Weight_kg, DNA.ID, DUR_ILLNESS_YRS) %>%
+  filter(DNA.ID %in% countsAndMeta$id.orig)
+row.names(meta) = meta$DNA.ID
+dim(meta)
+```
+
+
+Check that the meta data that came with the qiime artifact matches up to the main project meta data.
+```{r}
+m = merge(meta, key, by.x="DNA.ID", by.y="id.orig")
+table(m$PARTICIPANT.ID == m$StudyID)
+table(m$TIMEPOINT == m$Timepoint)
+```
+
+## Phyloseq
+
+```{r}
+library(phyloseq)
+
+ps <- phyloseq(otu_table(counts, taxa_are_rows=FALSE), 
+                 sample_data(meta))
+
+ps.prop <- transform_sample_counts(ps, function(otu) otu/sum(otu))
+
+ord <- ordinate(ps.prop, method="PCoA", distance="bray") 
+```
+
+```{r}
+po12 = plot_ordination(ps.prop, ord, color="TIMEPOINT") + 
+    scale_colour_manual(values = myColorPalette) +
+    theme_minimal()
+show(po12)
+
+po34 = plot_ordination(ps.prop, ord, color="TIMEPOINT", axes = c(3,4)) + 
+    scale_colour_manual(values = myColorPalette) +
+    theme_minimal()
+show(po34)
+```
+```{r}
+# many thanks to this poster for an excellent example:
+# https://stackoverflow.com/questions/70781091/align-another-object-with-scatterplotmarginal-boxplots
+
+addMarginBoxplots <- function(ggScatter){
+    pmain = ggScatter
+    # indata = ggplot_build(pmain)$data[[1]]
+    origData = ggplot_build(pmain)$data[[1]]
+    
+    samePalette = unique(origData$colour)
+    names(samePalette) = unique(origData$colour)
+
+    xdens <- axis_canvas(pmain, axis = "x") +
+        geom_boxplot(data = origData, aes(x = x, fill = colour)) +
+        scale_fill_manual(values = samePalette)
+    
+    
+    ydens <- axis_canvas(pmain, axis = "y", coord_flip = TRUE) +
+        geom_boxplot(data = origData, width=3, aes(x = y, fill = colour)) +
+        coord_flip() +
+        scale_fill_manual(values = samePalette)
+    
+    
+    p1 <- insert_xaxis_grob(pmain, xdens, grid::unit(.2, "null"), position = "top")
+    p2<- insert_yaxis_grob(p1, ydens, grid::unit(.2, "null"), position = "right")
+    ggdraw(p2) 
+}
+
+addMarginBoxplots(po12)
+addMarginBoxplots(po34)
+```
+
+Save to pdf.
+```{r}
+pdf(file.path(outDir, "ordination_fig.pdf"))
+
+addMarginBoxplots(po12)
+addMarginBoxplots(po34)
+
+dev.off()
+```
+
+
+
+```{r}
+sessionInfo()
+```
+
