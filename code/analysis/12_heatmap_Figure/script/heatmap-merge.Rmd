@@ -1,0 +1,165 @@
+---
+title: "Heatmap Figure"
+output: html_document
+date: "2024-02-20"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+```{r}
+outDir = "../output"
+dir.create(outDir)
+```
+
+## 
+
+Set up the outline of desired rows/columns for the heatmap.
+
+Desired rows.
+```{r}
+metrics = c("Shannon Diversity",
+            "Richness")
+
+# names of elements are the manual labels.  
+# element values should match the row names of the species-level heat map and p-value table from module 05_Taxonomy_vs_Features.
+species = c("(genus) Ruminococcus" = "g__Ruminococcus (UB*)[3]" ,
+            "(species) Ruminococcus torques_group" = "g__.Ruminococcus._torques_group (UB*)[72]" ,
+            "Ruminococcus gnavus_group" = ".Ruminococcus._gnavus_group.[134]" ,
+            "(genus) Oscillibacter" = "g__Oscillibacter (UB*)[152]" ,
+            "(genus) Phascolarctobacterium" = "g__Phascolarctobacterium (UB*)[67]" ,
+            "(family) Oscillospiraceae" = "g__uncultured (UB*)[34]",
+            "(genus) Bifidobacterium" = "Bifidobacterium.[2]",
+            "(genus) Cloacibacillus" = "Cloacibacillus.[173]",
+            "(genus) Clostridium sensu stricto" = "Clostridium_sensu_stricto_2.[66]" ,
+            "(genus) Faecalibacterium" = "Faecalibacterium.[14]",
+            "(genus) Akkermansia" = "g__Akkermansia (UB*)[23]",
+            "(genus) Lachnoclostridium" = "g__Lachnoclostridium (UB*)[97]",
+            "(genus) Lachnospira" = "g__Lachnospira (UB*)[46]" ,
+            "(genus) Holdemania" = "Holdemania.[117]",
+            "(family) Lachnospiraceae" = "Lachnospiraceae.[22]" ,
+            "(genus) Parabacteroides" = "Parabacteroides.[29]",
+            "Streptococcus_sp" = "Streptococcus_sp.[33]",
+            "(genus) Roseburia" = "g__Roseburia (UB*)[19]",
+            "(genus) Romboutsia" = "g__Romboutsia (UB*)[90]",
+            "(genus) Methanobrevibacter" = "Methanobrevibacter.[69]")
+```
+
+Desired columns.
+```{r}
+cols = c('HC T1'="ANOREXIA.HCT1.anova", 
+         'HC T2'="ANOREXIA.HCT2.anova", 
+         'placeholder --> T1 T2'="LOCATION.HC.anova" , #!!!! Need to add this!!!
+         'Subtype T1'="SUBTYPE.AN.HCT1.anova", 
+         'Subtype T2'="SUBTYPE.AN.HCT2.anova", 
+         'Location T1'="LOCATION.HCT1.anova", 
+         'Location T2'="LOCATION.HCT2.anova", 
+         'Weight T1'="Weight_kg.T1.pearson", 
+         'Weight T2'="Weight_kg.T2.pearson", 
+         'BMI T1'="BMI.T1.pearson", 
+         'BMI T2'="BMI.T2.pearson", 
+         'PSS T1'="PSS.T1.pearson", 
+         'PSS T2'="PSS.T2.pearson", 
+         'State Anxiety T1'="STAI_Y1.T1.pearson", 
+         'State Anxiety T2'="STAI_Y1.T2.pearson", 
+         'Trait Anxiety T1'="STAI_Y2.T1.pearson", 
+         'Trait Anxiety T2'="STAI_Y2.T2.pearson")
+warning("Did Ivory mix up Y1 and Y2???")
+```
+
+
+Get the Diversity metrics.
+```{r}
+diversity = read.delim2("../../08.1_Diversity_vs_Features/output/species/bigList_pvalues_fdr-adjusted_species.txt")
+row.names(diversity) = diversity$taxon
+diversity = diversity[c("shannon.diversity", "richness"),]
+row.names(diversity) = c("Shannon Diversity", "Richness")
+```
+
+Get the taxonomy metrics.
+```{r}
+taxa = read.delim2("../../05_Taxonomy_vs_Features/output/species/bigList_pvalues_fdr-adjusted_species.txt")
+
+# select desired rows
+row.names(taxa) = taxa$taxon
+taxa = taxa[species, ]
+
+#rename rows
+row.names(taxa) = names(species)
+```
+
+Put them together.
+```{r}
+forHeat = rbind(diversity[ ,cols],
+                taxa[ ,cols])
+names(forHeat) = names(cols)
+forHeat = forHeat %>% mutate_if(is.character, as.numeric)
+```
+
+
+Heat map function.
+```{r}
+# source("../../05_Taxonomy_vs_Features/")
+
+pvalTableToHeatMap = function(pvalTable, taxaLevel, midpointPval=0.05, bluePvalue=0.05, redPvalue=0.00001, title="-log10(p-values)", displayName.FUN=c, caption.notes=""){
+    # pvalTable - data frame of pvalues, with columns corresponding to variables (metadata) and named rows for taxa_metrics.
+    # bluePval - pvalues worse than this will all be shown in blue.
+    # midpointPval - these will be shown in white, as a middle point between the blue and red gradients.
+    # all p-values better than this will be shown in solid red.
+    pvalTable[pvalTable < redPvalue] = redPvalue
+    pvalTable[pvalTable > bluePvalue] = bluePvalue
+    
+    taxon = sapply( row.names(pvalTable), displayName.FUN )
+    if (length(unique(taxon)) < nrow(pvalTable)){
+        taxon = paste0(taxon, "[", 1:nrow(pvalTable), "]")
+    }
+    row.names(pvalTable) = taxon
+    
+    longTab = -log10(pvalTable) %>% 
+        mutate(taxon= row.names(pvalTable) ) %>%
+        pivot_longer(cols=-taxon, names_to = "var", values_to="pval")
+    longTab$var = factor(x=as.character(longTab$var), levels=names(pvalTable))
+    longTab$taxon = factor(x=as.character(longTab$taxon), levels=row.names(pvalTable))
+    ggplot(longTab, aes(x=var, y=taxon, fill=pval)) +
+      geom_tile(col="gray") +
+      scale_fill_gradient2(low = "blue", high = "red", mid = "white",
+                           midpoint = -log10(midpointPval),
+                           limit = c(-log10(bluePvalue),-log10(redPvalue)),
+                           space = "Lab",
+                           name=paste0("p-value threshold: ", midpointPval, "\n\n-log10(p-value)"),
+                           na.value = gray(.9)) +
+      theme_minimal()+ # minimal theme
+      ggtitle(title) +
+      xlab("") +
+      ylab("") +
+      theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                       size = 8, hjust = 1)) +
+      coord_fixed() +
+      labs(caption=caption.notes)
+}
+```
+
+```{r}
+pvalTableToHeatMap(forHeat, 
+                   title="-log10(adjusted p-values)",
+                   caption.notes = "species level")
+```
+
+Save to pdf.
+```{r}
+pdf(file.path(outDir, "heatMap_main_fig.pdf"))
+
+show(last_plot())
+
+dev.off()
+```
+
+
