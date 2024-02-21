@@ -4,9 +4,13 @@
 # ignore the /results folder for compatibilty with code ocean.
 /results/**
 
+# ignore the /releases folder, this is for git releases
+releases/**
+
 # In general, don't save output files in git
 **/output/**
 **/src/*.html
+**/*.html
 **/log/**
 
 # README files are often README.md files that can be rendered to html.
