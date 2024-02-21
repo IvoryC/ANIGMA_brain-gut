@@ -20,6 +20,7 @@ suppressPackageStartupMessages(library(dplyr)); tellme("dplyr")
 library(ggplot2); tellme("ggplot2")
 library(ggrepel); tellme("ggrepel")
 library(cowplot); tellme("cowplot")
+library(ggsignif); tellme("ggsignif")
 ```
 ### Colors
 
@@ -206,32 +207,65 @@ ps.prop <- transform_sample_counts(ps, function(otu) otu/sum(otu))
 ord <- ordinate(ps.prop, method="PCoA", distance="bray") 
 ```
 
+Extract the PCs.
+```{r}
+pc = ord$vectors[,1:6]
+pcm = merge(meta, pc, by.x="DNA.ID", by.y=0)
+write.table(file.path(outDir, paste0("PCoA_", taxaLevel, ".txt")))
+```
+
+Write a summary for bar plots.
+```{r}
+pdf(file.path(outDir, "barplots.pdf"))
+for(i in 1:6){
+    axisName = paste0("Axis.", i)
+    data = data.frame(TIMEPOINT = pcm[,"TIMEPOINT"],
+                      PC = pcm[,axisName])
+    gplot = ggplot(data=data, aes(y=PC, x = TIMEPOINT, fill=TIMEPOINT, group=TIMEPOINT)) +
+        geom_boxplot() +
+        ylab(axisName) +
+        scale_fill_manual(values = myColorPalette) +
+        geom_signif(comparisons = list(c("HC","T1"), c("T1","T2"), c("HC","T2")),
+                    y_position=c(.5, .6, .7), test = "wilcox.test") +
+        labs(caption="p-values calculated by geom_signif function using wilcox.test.")
+    show(gplot)
+}
+dev.off()
+```
+
+
 ```{r}
 po12 = plot_ordination(ps.prop, ord, color="TIMEPOINT") + 
-    scale_colour_manual(values = myColorPalette) +
-    theme_minimal()
+    scale_colour_manual(values = myColorPalette)
 show(po12)
 
 po34 = plot_ordination(ps.prop, ord, color="TIMEPOINT", axes = c(3,4)) + 
-    scale_colour_manual(values = myColorPalette) +
-    theme_minimal()
+    scale_colour_manual(values = myColorPalette) 
 show(po34)
 ```
 ```{r}
 # many thanks to this poster for an excellent example:
 # https://stackoverflow.com/questions/70781091/align-another-object-with-scatterplotmarginal-boxplots
 
+# library(ggsignif)
+
 addMarginBoxplots <- function(ggScatter){
     pmain = ggScatter
+    
     # indata = ggplot_build(pmain)$data[[1]]
     origData = ggplot_build(pmain)$data[[1]]
+    
+    # ngroups = length(unique(origData$colour))
     
     samePalette = unique(origData$colour)
     names(samePalette) = unique(origData$colour)
 
     xdens <- axis_canvas(pmain, axis = "x") +
         geom_boxplot(data = origData, aes(x = x, fill = colour)) +
-        scale_fill_manual(values = samePalette)
+        scale_fill_manual(values = samePalette) 
+    # +
+    #     geom_signif(comparisons = list(c(1,2)), 
+    #                 map_signif_level=TRUE, y_position=c(.3,.2))
     
     
     ydens <- axis_canvas(pmain, axis = "y", coord_flip = TRUE) +
@@ -240,7 +274,7 @@ addMarginBoxplots <- function(ggScatter){
         scale_fill_manual(values = samePalette)
     
     
-    p1 <- insert_xaxis_grob(pmain, xdens, grid::unit(.2, "null"), position = "top")
+    p1 <- insert_xaxis_grob(pmain, xdens, grid::unit(.14, "null"), position = "top")
     p2<- insert_yaxis_grob(p1, ydens, grid::unit(.2, "null"), position = "right")
     ggdraw(p2) 
 }
@@ -258,6 +292,9 @@ addMarginBoxplots(po34)
 
 dev.off()
 ```
+
+
+
 
 
 
