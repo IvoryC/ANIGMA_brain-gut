@@ -7,7 +7,7 @@
 #'     toc_depth: 4
 #' ---
 #' 
-## ----include=FALSE----------------------------------------------------------------------------------------
+## ----include=FALSE----------------------------------------------------
 # I prefer to edit the Rmd file and then use purl to convert into a R script.
 # knitr::purl(input=dir(pattern="Rmd"), documentation = 2L)
 knitr::opts_chunk$set(echo = TRUE)
@@ -22,7 +22,7 @@ knitr::opts_chunk$set(echo = TRUE)
 #' 
 #' ### libraries
 #' 
-## ----results = "hold"-------------------------------------------------------------------------------------
+## ----results = "hold"-------------------------------------------------
 tellme <- function(name){print(paste0("Package ", name, " version: ", packageVersion(name)))}
 
 library(tidyr); tellme("tidyr")
@@ -33,7 +33,7 @@ library(ggrepel); tellme("ggrepel")
 #' ### Colors
 #' 
 #' A named vector of color vectors.  Most of these match the previous paper. 
-## ----fig.height=4, fig.width=2, echo=FALSE, include=FALSE-------------------------------------------------
+## ----fig.height=4, fig.width=2, echo=FALSE, include=FALSE-------------
 themeFile = "../../input/themes.R"
 if (file.exists(themeFile)){
     source(themeFile)
@@ -79,18 +79,18 @@ theme_set(theme_classic())
 
 #' 
 #' Pick a taxonomic level. Take an argument if one is given.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 args = commandArgs(trailingOnly=TRUE)
 if (length(args) > 0){
     taxaLevel = args[1]
 }else{
-    taxaLevel = "family"
+    taxaLevel = "species"
 }
 
 #' 
 #' 
 #' Direct output
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 outDir = file.path("..", "output", taxaLevel)
 suppressWarnings( dir.create(outDir, recursive = T) )
 
@@ -101,7 +101,7 @@ suppressWarnings( dir.create(outDir, recursive = T) )
 #' 
 #' ## Read counts data
 #' 
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 input=c(
     domain = "../../input/counts-tables/filtered-counts_level-1_domain.csv",
     phylum = "../../input/counts-tables/filtered-counts_level-2_phylum.csv",
@@ -117,13 +117,13 @@ countsFile = input[taxaLevel]
 #' 
 #' We are looking at the ``r taxaLevel`` level, so we will read file ``r countsFile``.
 #' 
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 countsAndMeta = read.csv(countsFile)
 dim(countsAndMeta)
 
 #' 
 #' Filter out unrelated samples
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 # already done, but double check
 if (any(countsAndMeta$Person != "Kylie")){
     message("Filtering out unrelated samples.")
@@ -133,7 +133,7 @@ if (any(countsAndMeta$Person != "Kylie")){
 }
 
 #' 
-## ----echo=FALSE, include=FALSE----------------------------------------------------------------------------
+## ----echo=FALSE, include=FALSE----------------------------------------
 # Make a table with all the metadata that came with the artifact.
 # No real need to save this.
 
@@ -143,19 +143,19 @@ if (any(countsAndMeta$Person != "Kylie")){
 
 #' 
 #' This data includes some metadata.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 metaCols = c("id.orig", "BarcodeNumber", "BarcodeSequenceFull", "BarcodeSequence", "LinkerPrimerSequence", "StudyID", "Timepoint", "Person", "index")
 
 #' 
 #' All the other columns should look like taxa names. Look at the first few characters. How often does that prefix appear?
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 dataCols = setdiff(colnames(countsAndMeta), metaCols)
 table(substr(dataCols, 0, 11))
 
 #' 
 #' 
 #' Split the meta data and counts
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 metaCols = c("id.orig", "BarcodeNumber", "BarcodeSequenceFull", "BarcodeSequence", "LinkerPrimerSequence", "StudyID", "Timepoint", "Person", "index")
 counts = countsAndMeta %>% select(-all_of(metaCols))
 row.names(counts) = countsAndMeta$id.orig
@@ -165,7 +165,7 @@ key = countsAndMeta %>% select(id.orig, StudyID, Timepoint)
 #' ### normalize counts
 #' 
 #' Normalize counts.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 lognorm <- function(table, log10.do = TRUE){
   # table - a table with rows for samples and columns for features
   #         samples names are row names.
@@ -188,7 +188,7 @@ counts.norm = lognorm(counts)
 #' Rename taxa in counts file.  These names are very long.  Give them shorter names that will be easy to read in tables and look nice in figures.
 #' 
 #' Function to display taxa names.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 shortenTaxonName = function(name, level=NULL){
     name2 = sub(".d__", "<<splitHere>>d__", name)
     name2 = sub(".p__", "<<splitHere>>p__", name2)
@@ -233,7 +233,7 @@ displayTaxonName <- function(name, level=NULL, maxchar=50){
 
 #' 
 #' If the new names are not all unique, then append an arbitrary number to them.  Either way, save a key of original taxa names and shortened taxa names.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 originalName = colnames(counts.norm)
 
 shortName = sapply(originalName, shortenTaxonName)
@@ -254,7 +254,7 @@ write.table(nameKey,
 #' ## Read meta data.
 #' 
 #' Read the original metadata file.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 meta = read.delim("../../input/meta/ANIGMA-metadata.txt") %>%
   select(PARTICIPANT.ID, LOCATION, TIMEPOINT, AGE, SUBTYPE, BMI, 
          STAI_Y1, STAI_Y2, STAI_TOTAL, PSS, DAYS_TREAT, Weight_kg, DNA.ID, DUR_ILLNESS_YRS) %>%
@@ -264,7 +264,7 @@ dim(meta)
 
 #' 
 #' Check metadata.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 if (any(!is.na(meta$DAYS_TREAT[meta$TIMEPOINT=="HC"]))){
     message("For any Healthy Control participant, the DAYS_TREAT should be NA (not 0).")
     meta$DAYS_TREAT[meta$TIMEPOINT=="HC"] = NA
@@ -274,27 +274,27 @@ if (any(!is.na(meta$DAYS_TREAT[meta$TIMEPOINT=="HC"]))){
 
 #' 
 #' Check that the meta data that came with the qiime artifact matches up to the main project meta data.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 m = merge(meta, key, by.x="DNA.ID", by.y="id.orig")
 table(m$PARTICIPANT.ID == m$StudyID)
 table(m$TIMEPOINT == m$Timepoint)
 
 #' 
 #' The metadata from the qiime artifact and the metadata for the project match up. There is one that has an error in the qiime artifact metadata. That's fine. We'll use the project metadata moving forward.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 m[which(m$TIMEPOINT != m$Timepoint), c("PARTICIPANT.ID", "TIMEPOINT", "BMI", "Timepoint")]
 
 #' 
 #' ### Feature engineering
 #' 
 #' For subtype, we are only interested in the AN cases. HC is not really an AN subtype. And we need to split samples between T1 and T2 so we are not double-dipping with each paired sample.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 meta$SUBTYPE.AN = meta$SUBTYPE
 meta$SUBTYPE.AN[meta$SUBTYPE.AN=="HC"] = NA
 
 #' 
 #' The anorexia signal is what we would see by comparing T1 to HC or T2 to HC, which is the "TIMEPOINT" variable. Lets call it the ANOREXIA variable so that its clearer in the summaries.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 meta$ANOREXIA = meta$TIMEPOINT
 
 #' 
@@ -302,7 +302,7 @@ meta$ANOREXIA = meta$TIMEPOINT
 #' ### Previous feature engineering
 #' 
 #' Read the diffs metadata - data where diffs have been calculated.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 prevModule = dir(path="../..", pattern="Participant_Metadata", full.names = T)
 diffsFile = file.path(prevModule, "output", "ANIGMA-metadata_by_AN_participant.txt")
 diffs = read.delim(diffsFile)
@@ -315,7 +315,7 @@ dim(diffs)
 #' This table has ``r nrow(diffs)`` rows and ``r ncol(diffs)`` columns.
 #' 
 #' Match this data withe corresponding DNA ID for T1 and T2.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 diffKey = meta %>% 
     select(PARTICIPANT.ID, TIMEPOINT, DNA.ID) %>%
     pivot_wider(id_cols = PARTICIPANT.ID, names_from = TIMEPOINT, values_from = DNA.ID, names_prefix = "DNA.ID.") %>%
@@ -327,13 +327,13 @@ diffs = merge(diffs, diffKey, all.x=T, by="PARTICIPANT.ID")
 #' ## merge
 #' 
 #' Merge the metadata and the normalized counts data.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 data = merge(counts.norm, meta, by.x=0, by.y="DNA.ID")
 dim(data)
 
 #' 
 #' Make a scrambled version. We can use this to verify that we see null results, and our tests are not inherently flawed.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 scram.counts = counts.norm
 row.names(scram.counts) = sample(row.names(scram.counts), size=nrow(scram.counts), replace = FALSE)
 scrambled.data = merge(scram.counts, meta, by.x=0, by.y="DNA.ID")
@@ -341,14 +341,14 @@ rm(scram.counts)
 
 #' 
 #' Merge the T1 counts data to the per-participant differences data.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 diffData1 = merge(counts.norm, diffs, by.x=0, by.y="DNA.ID.T1")
 diffData2 = merge(counts.norm, diffs, by.x=0, by.y="DNA.ID.T2")
 
 #' 
 #' 
 #' Make sure Patient ID is not treated as a numerical value.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 data$PARTICIPANT.ID = as.character(data$PARTICIPANT.ID)
 scrambled.data$PARTICIPANT.ID = as.character(scrambled.data$PARTICIPANT.ID)
 
@@ -362,19 +362,19 @@ scrambled.data$PARTICIPANT.ID = as.character(scrambled.data$PARTICIPANT.ID)
 #' We have our categorical variables (two or more categories). These can be split in to variables that should be handled across time (T1 and T2 samples are both included in the same test) or by time (the test should be exclude one or the other time point so all samples in the test are independent). 
 #' 
 #' T1 and T2, but not HC.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 variables_acrossTime = c("PARTICIPANT.ID", "TIMEPOINT")
 variables_acrossTime
 
 #' Handle by time: T1 (HC and T1) or T2 (HC and T2)
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 variables_byTime = c("LOCATION", "ANOREXIA", "SUBTYPE.AN")
 variables_byTime
 
 #' 
 #' 
 #' A subset of those are binary, and we can use the t-test.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 binary = c("TIMEPOINT.AN")
 # HC vs T1
 # HC vs T2
@@ -390,24 +390,24 @@ binary
 #'    - should not be tested with both time points simultaneously because there are many pairs of non-independent samples, and 
 #'    - we could test difference against taxa in addition to testing the T1 and the T2 values.
 #'  
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 constants = c("AGE", "DUR_ILLNESS_YRS", "DAYS_TREAT")
 
 #'  
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 diffables =c("Weight_kg", "BMI", "STAI_Y1", "STAI_Y2", "STAI_TOTAL", "PSS")
 diffables
 
 #' 
 #' We have previously calculated differences, and a couple other per-patient numerical features: T1.severity and BMI.gain.per.day.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 # deltas = names(diffs) %>% grep(pattern="diff", value = T)
 deltas = c("T1.severity", "Weight_kg.diff", "BMI.diff", "BMI.gain.per.day", "STAI_Y1.diff", "STAI_Y2.diff", "STAI_TOTAL.diff", "PSS.diff")
 deltas
 
 #' 
 #' taxa
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 taxa = colnames(counts.norm)
 
 #' 
@@ -417,9 +417,9 @@ taxa = colnames(counts.norm)
 #' 
 #' Compare the values for each taxon against each categorical feature. Use the 1-way-anova and the Kruskal test.
 #' 
-## ----TaxaVsCategoryTest-----------------------------------------------------------------------------------
-TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.05, testType="anova", fileNameBase=NULL, minGroupSize=2){
-    # testType - one of "anova" or "kruskal.test"
+## ----TaxaVsCategoryTest-----------------------------------------------
+TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.05, testType="anova", fileNameBase=NULL, minGroupSize=2, pairID="PARTICIPANT.ID"){
+    # testType - one of "anova" or "kruskal.test" or "paired"
     # taxa - a subset of columns representing taxonomic features
     # variables - a different subset of columns
     
@@ -471,6 +471,16 @@ TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.0
             if (testType == "kruskal.test"){
                 pval = kruskal.test( taxonVals ~ xAxis, na.action=na.exclude )$p.value
             }
+            if (testType == "paired"){
+                pairedDF = data.frame(taxonVals = dataDF[, taxon],
+                                      xAxis = dataDF[, variable],
+                                      id = dataDF[, pairID]) %>%
+                    pivot_wider(id_cols=id, names_from = xAxis, values_from = taxonVals) %>%
+                    filter(complete.cases(.)) %>%
+                    data.frame()
+                categories = unique(dataDF[,variable])
+                pval = t.test(x=pairedDF[, categories[1]], y=pairedDF[, categories[2]], paired = TRUE )$p.value
+            }
             
             pvalTable[taxon, variable] = pval
             variablePvals[taxon] = pval
@@ -482,10 +492,20 @@ TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.0
                     ylab(displayTaxonName(taxon, taxaLevel)) +
                     geom_boxplot(outlier.alpha = 0) +
                     # geom_point() +
-                    geom_jitter(position=position_jitterdodge(jitter.width = .09, jitter.height = 0), size=.5) + 
+                    # geom_jitter(position=position_jitterdodge(jitter.width = .09, jitter.height = 0), size=.5) + 
                     scale_colour_manual(variable, values = myColorPalette) +
                     ggtitle( paste0(testType, " p-value: ", signif(pval, 5)) ) +
                     theme(plot.title = element_text(colour = ifelse(pval<=redPval, "red", "black"))) 
+                
+                if (testType == "paired"){
+                    # this case, pairedDF exists!
+                    gplot = gplot +
+                        geom_point() +
+                        annotate(geom="segment", x="T1",  xend="T2", y=pairedDF$T1, yend=pairedDF$T2)
+                }else{
+                    gplot = gplot +
+                        geom_jitter(position=position_jitterdodge(jitter.width = .09, jitter.height = 0), size=.5)
+                }
                 variablePlotList[[taxon]] = gplot
             }
         }# taxon for loop
@@ -543,11 +563,14 @@ TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.0
 }
 
 #' 
-## ----runTaxaVsCategoryTest--------------------------------------------------------------------------------
+## ----runTaxaVsCategoryTest--------------------------------------------
 # parametric test - anova
 acrossTimeTable = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC"), 
-                                     taxa, variables_acrossTime, 
+                                     taxa, variables_acrossTime, doPlot=F, 
                                      fileNameBase=file.path(outDir, "T1T2.anova"))
+acrossTimePairedTable = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC"), 
+                                     taxa, "TIMEPOINT", testType = "paired",
+                                     fileNameBase=file.path(outDir, "T1T2.pairedT"))
 
 # randomized.acrossTimeTable = TaxaVsCategoryTest(scrambled.data, taxa, variables_acrossTime, doPlot=F)
 
@@ -584,7 +607,7 @@ kwAtHC = TaxaVsCategoryTest(data %>% filter(TIMEPOINT == "HC"),
 #' 
 #' Compare the values for each taxon against each numeric feature.
 #' 
-## ----TaxaVsNumericTest------------------------------------------------------------------------------------
+## ----TaxaVsNumericTest------------------------------------------------
 TaxaVsNumericTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.05, testType="pearson", fileNameBase=NULL){
     # testType - one of "pearson" or "kendall"
     # taxa - a subset of columns representing taxonomic features
@@ -701,7 +724,7 @@ TaxaVsNumericTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.05
 }
 
 #' 
-## ----runTaxaVsNumericTest---------------------------------------------------------------------------------
+## ----runTaxaVsNumericTest---------------------------------------------
 suppressWarnings({
     suppressMessages({
         peAtT1 = TaxaVsNumericTest(data %>% filter(TIMEPOINT == "T1"), 
@@ -728,7 +751,7 @@ suppressWarnings({
 #' Merge to make one large heatmap.
 #' 
 #' Merge the categorical values.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 appendName <- function(df, suffix){
     names(df) = paste0(names(df), suffix)
     return(df)
@@ -738,6 +761,7 @@ mergeList = list(
     anovaAtT2 = appendName(anovaAtT2, ".HCT2.anova"),
     anovaAtHC = appendName(anovaAtHC, ".HC.anova"),
     acrossTimeTable = appendName(acrossTimeTable, ".T1T2.anova"),
+    acrossTimePairedTable = appendName(acrossTimePairedTable, ".T1T2.pairedT"),
     kwAcrossTime = appendName(kwAcrossTime, ".T1T2.Kruskal"),
     kwAtT1 = appendName(kwAtT1, ".HCT1.Kruskal"),
     kwAtT2 = appendName(kwAtT2, ".HCT2.Kruskal"),
@@ -757,7 +781,8 @@ m.all.1 = m.all.1 %>% select(-Row.names)
 # sort columns
 m.all.1 = m.all.1[, order(names(m.all.1))]
 # order groups of columns
-m.all.1 = m.all.1 %>% select(starts_with("PARTICIPANT.ID"),
+m.all.1 = m.all.1 %>% select(starts_with("TIMEPOINT"),
+                             # starts_with("PARTICIPANT.ID"),
                              starts_with("HCvsAN"),
                              starts_with("SUBTYPE.AN"),
                              starts_with("ANOREXIA"),
@@ -766,7 +791,7 @@ m.all.1 = m.all.1 %>% select(starts_with("PARTICIPANT.ID"),
 #' 
 #' 
 #' Merge the numeric feature test results.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 appendName <- function(df, suffix){
     names(df) = paste0(names(df), suffix)
     return(df)
@@ -804,7 +829,7 @@ m.all.2 = m.all.2 %>% select(starts_with("Weight_kg"),
 #' 
 #' 
 #' Merge into a single results table
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 m.all = merge(m.all.1, m.all.2, by=0)
 
 # move row names
@@ -821,7 +846,7 @@ m.all = m.all[ orderRows, ]
 #' ### Save tables
 #' 
 #' Save p-values. Keep the row order specified above, but add the full names of taxa as an extra column.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 row.names(nameKey) = nameKey$shortName
 m.all.labeled = cbind(taxon.originalName=nameKey[row.names(m.all),"originalName"], 
                       taxon=row.names(m.all),
@@ -832,7 +857,7 @@ write.table(m.all.labeled, file = file.path(outDir, paste0("bigList_pvalues_raw_
 
 #' 
 #' Adjust p-values within each column, and save that table.  Add on the full taxon names, and keep row order.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 # m.all.adj = apply(m.all, MARGIN = 2, FUN=p.adjust, method="fdr")
 m.all.adj = m.all
 for( test in names(m.all)){
@@ -853,7 +878,7 @@ write.table(m.all.adj.labeled, file = file.path(outDir, paste0("bigList_pvalues_
 #'   * How many tests have non-NA p-values?
 #'   * How many raw p-values are significant?
 #'   * How many are significant after adjusting for the number of taxa.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 summary = data.frame(testName="TOTAL",
                      attemptedTests=NA,
                      testWithPvalue=NA,
@@ -888,7 +913,7 @@ write.table(summary, file = file.path(outDir, paste0("bigList_summary_", taxaLev
 #' ### pvalue heat map
 #' 
 #' Show the p-value table as a heat map.
-## ----pvalHeat---------------------------------------------------------------------------------------------
+## ----pvalHeat---------------------------------------------------------
 pvalTableToHeatMap = function(pvalTable, midpointPval=0.05, bluePvalue=0.05, redPvalue=0.00001, title="-log10(p-values)", displayName.FUN=c){
     # pvalTable - data frame of pvalues, with columns corresponding to variables (metadata) and named rows for taxa.
     # bluePval - pvalues worse than this will all be shown in blue.
@@ -928,7 +953,7 @@ pvalTableToHeatMap = function(pvalTable, midpointPval=0.05, bluePvalue=0.05, red
 #' 
 #' 
 #' Heat-map for categorical feature p-values.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 pvalHeatMap.categories.file = file.path(outDir, paste0("heatmap_categoricalFeatures_raw-p-values_", taxaLevel, ".pdf"))
 pdf(file=pvalHeatMap.categories.file,
     height = 3 + nrow(m.all.1) / 12,
@@ -938,7 +963,7 @@ dev.off()
 
 #' 
 #' Heat-map for numerical feature p-values.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 pvalHeatMap.numeric.file = file.path(outDir, paste0("heatmap_numericFeatures_raw-p-values_", taxaLevel, ".pdf"))
 pdf(file=pvalHeatMap.numeric.file,
     height = 3 + nrow(m.all.2) / 12,
@@ -949,7 +974,7 @@ dev.off()
 #' 
 #' 
 #' Save a single large heatmap with all raw p-values
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 pvalHeatMap.big.file = file.path(outDir, paste0("bigList_heatmap_raw-p-values_", taxaLevel, ".pdf"))
 pdf(file=pvalHeatMap.big.file,
     height = 3 + nrow(m.all) / 6,
@@ -959,7 +984,7 @@ dev.off()
 
 #' 
 #' Save a single large heatmap with all ajdusted p-values
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 pvalHeatMap.big.adj.file = file.path(outDir, paste0("bigList_heatmap_fdr.adj-p-values_", taxaLevel, ".pdf"))
 pdf(file=pvalHeatMap.big.adj.file,
     height = 3 + nrow(m.all) / 6,
@@ -971,7 +996,7 @@ dev.off()
 #' ### p-value histograms
 #' 
 #' Draw p-value histograms for all variables.
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 pvalHist = function(pvalTable, title="", pdfName=title, saveToFolder=outDir, taxalevel=taxaLevel){
     longTab = cbind(taxon=row.names(pvalTable), pvalTable) %>% 
         pivot_longer(cols=-taxon, names_to = "variable", values_to = "value")
@@ -999,10 +1024,10 @@ pvalHist = function(pvalTable, title="", pdfName=title, saveToFolder=outDir, tax
 
 #' 
 #' 
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 pvalHist(m.all, "bigList")
 
 #' 
-## ---------------------------------------------------------------------------------------------------------
+## ---------------------------------------------------------------------
 sessionInfo()
 
