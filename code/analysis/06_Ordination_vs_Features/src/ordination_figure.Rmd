@@ -275,7 +275,7 @@ show(po34)
 # library(ggsignif)
 
 addMarginBoxplots <- function(ggScatter){
-    pmain = ggScatter
+    pmain = ggScatter + theme(legend.position="none")
     
     # indata = ggplot_build(pmain)$data[[1]]
     origData = ggplot_build(pmain)$data[[1]]
@@ -299,8 +299,9 @@ addMarginBoxplots <- function(ggScatter){
         scale_fill_manual(values = samePalette)
     
     
-    p1 <- insert_xaxis_grob(pmain, xdens, grid::unit(.14, "null"), position = "top")
+    p1 <- insert_xaxis_grob(pmain, xdens, grid::unit(.18, "null"), position = "top")
     p2<- insert_yaxis_grob(p1, ydens, grid::unit(.2, "null"), position = "right")
+    
     ggdraw(p2) 
 }
 
