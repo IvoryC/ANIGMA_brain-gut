@@ -21,6 +21,8 @@ library(ggplot2); tellme("ggplot2")
 library(ggrepel); tellme("ggrepel")
 library(cowplot); tellme("cowplot")
 library(ggsignif); tellme("ggsignif")
+
+set.seed(2222)
 ```
 ### Colors
 
@@ -211,27 +213,50 @@ Extract the PCs.
 ```{r}
 pc = ord$vectors[,1:6]
 pcm = merge(meta, pc, by.x="DNA.ID", by.y=0)
-write.table(file.path(outDir, paste0("PCoA_", taxaLevel, ".txt")))
+write.table(pcm, file=file.path(outDir, paste0("PCoA_", taxaLevel, ".txt")), sep="\t", row.names=F, quote=F)
 ```
 
 Write a summary for bar plots.
 ```{r}
-pdf(file.path(outDir, "barplots.pdf"))
-for(i in 1:6){
-    axisName = paste0("Axis.", i)
-    data = data.frame(TIMEPOINT = pcm[,"TIMEPOINT"],
-                      PC = pcm[,axisName])
-    gplot = ggplot(data=data, aes(y=PC, x = TIMEPOINT, fill=TIMEPOINT, group=TIMEPOINT)) +
-        geom_boxplot() +
-        ylab(axisName) +
-        scale_fill_manual(values = myColorPalette) +
-        geom_signif(comparisons = list(c("HC","T1"), c("T1","T2"), c("HC","T2")),
-                    y_position=c(.5, .6, .7), test = "wilcox.test") +
-        labs(caption="p-values calculated by geom_signif function using wilcox.test.")
-    show(gplot)
+savePcBarPlots <- function(PC.df, axesCols = paste0("Axis.", 1:6), filename="pc_barplots.txt"){
+    outputpath = file.path(outDir, filename)
+    pdf(outputpath)
+    firstPlot = NULL
+    for(axisName in axesCols){
+        data = data.frame(TIMEPOINT = pcm[,"TIMEPOINT"],
+                          PC = pcm[,axisName])
+        gplot = ggplot(data=data, aes(y=PC, x = TIMEPOINT, fill=TIMEPOINT, group=TIMEPOINT)) +
+            geom_boxplot() +
+            ylab(axisName) +
+            scale_fill_manual(values = myColorPalette) +
+            geom_signif(comparisons = list(c("HC","T1"), c("T1","T2"), c("HC","T2")),
+                        y_position=c(.5, .6, .7), test = "wilcox.test") +
+            labs(caption="p-values calculated by geom_signif function using wilcox.test.")
+        show(gplot)
+        if (is.null(firstPlot)) firstPlot = gplot
+    }
+    dev.off()
+    show(firstPlot)
+    message("Saved series in file: ", outputpath)
+    
+    summarydf = data.frame(HC=c(), T1=c(), T2=c())
+    for (timepoint in c("HC", "T1", "T2")){
+        for( axis in axesCols){
+            value = pcm %>% 
+                filter(TIMEPOINT==timepoint) %>% 
+                select(all_of(axis)) %>% 
+                unlist() %>% 
+                mean(na.rm=T) %>% 
+                signif(digits=3)
+            summarydf[axis, timepoint] = value
+        }
+    }
+    output = cbind(Axis=row.names(summarydf), summarydf)
+    write.table(output, file=gsub("_barplots.pdf", "_means.txt", outputpath), sep="\t", row.names=F, quote=F)
 }
-dev.off()
+savePcBarPlots(pcm, filename="all-sites_barplots.pdf")
 ```
+
 
 
 ```{r}
@@ -285,7 +310,7 @@ addMarginBoxplots(po34)
 
 Save to pdf.
 ```{r}
-pdf(file.path(outDir, "ordination_fig.pdf"))
+pdf(file.path(outDir, "all-sites_ordination_fig.pdf"))
 
 addMarginBoxplots(po12)
 addMarginBoxplots(po34)
@@ -295,6 +320,153 @@ dev.off()
 
 
 
+# site specific
+
+## Acute
+
+Clear the slate
+```{r}
+rm(ps, ps.prop, pc, pcm, po12, po34)
+meta_i = meta %>% filter(LOCATION == "ACUTE")
+counts_i = counts[meta_i$DNA.ID,]
+```
+
+Ordination.
+```{r}
+ps <- phyloseq(otu_table(counts_i, taxa_are_rows=FALSE), 
+                 sample_data(meta_i))
+
+ps.prop <- transform_sample_counts(ps, function(otu) otu/sum(otu))
+
+ord <- ordinate(ps.prop, method="PCoA", distance="bray") 
+
+pc = ord$vectors[,1:6]
+pcm = merge(meta, pc, by.x="DNA.ID", by.y=0)
+```
+
+Save reference barplots.
+```{r}
+savePcBarPlots(pcm, filename="acute_barplots.pdf")
+```
+
+Save ordination plots.
+```{r}
+pdf(file.path(outDir, "acute_ordination.pdf"))
+
+po12 = plot_ordination(ps.prop, ord, color="TIMEPOINT") + 
+    scale_colour_manual(values = myColorPalette)
+addMarginBoxplots(po12)
+
+po34 = plot_ordination(ps.prop, ord, color="TIMEPOINT", axes = c(3,4)) + 
+    scale_colour_manual(values = myColorPalette) 
+addMarginBoxplots(po34)
+
+po56 = plot_ordination(ps.prop, ord, color="TIMEPOINT", axes = c(5,6)) + 
+    scale_colour_manual(values = myColorPalette) 
+addMarginBoxplots(po56)
+
+dev.off()
+
+addMarginBoxplots(po12)
+```
+
+
+## CEED
+
+Clear the slate
+```{r}
+rm(ps, ps.prop, pc, pcm, po12, po34)
+meta_i = meta %>% filter(LOCATION == "CEED")
+counts_i = counts[meta_i$DNA.ID,]
+```
+
+Ordination.
+```{r}
+ps <- phyloseq(otu_table(counts_i, taxa_are_rows=FALSE), 
+                 sample_data(meta_i))
+
+ps.prop <- transform_sample_counts(ps, function(otu) otu/sum(otu))
+
+ord <- ordinate(ps.prop, method="PCoA", distance="bray") 
+
+pc = ord$vectors[,1:6]
+pcm = merge(meta, pc, by.x="DNA.ID", by.y=0)
+```
+
+Save reference barplots.
+```{r}
+savePcBarPlots(pcm, filename="ceed_barplots.pdf")
+```
+
+Save ordination plots.
+```{r}
+pdf(file.path(outDir, "ceed_ordination.pdf"))
+
+po12 = plot_ordination(ps.prop, ord, color="TIMEPOINT") + 
+    scale_colour_manual(values = myColorPalette)
+addMarginBoxplots(po12)
+
+po34 = plot_ordination(ps.prop, ord, color="TIMEPOINT", axes = c(3,4)) + 
+    scale_colour_manual(values = myColorPalette) 
+addMarginBoxplots(po34)
+
+po56 = plot_ordination(ps.prop, ord, color="TIMEPOINT", axes = c(5,6)) + 
+    scale_colour_manual(values = myColorPalette) 
+addMarginBoxplots(po56)
+
+dev.off()
+
+addMarginBoxplots(po12)
+```
+
+
+## Fargo
+
+Clear the slate
+```{r}
+rm(ps, ps.prop, pc, pcm, po12, po34)
+meta_i = meta %>% filter(LOCATION == "FARGO")
+counts_i = counts[meta_i$DNA.ID,]
+```
+
+Ordination.
+```{r}
+ps <- phyloseq(otu_table(counts_i, taxa_are_rows=FALSE), 
+                 sample_data(meta_i))
+
+ps.prop <- transform_sample_counts(ps, function(otu) otu/sum(otu))
+
+ord <- ordinate(ps.prop, method="PCoA", distance="bray") 
+
+pc = ord$vectors[,1:6]
+pcm = merge(meta, pc, by.x="DNA.ID", by.y=0)
+```
+
+Save reference barplots.
+```{r}
+savePcBarPlots(pcm, filename="fargo_barplots.pdf")
+```
+
+Save ordination plots.
+```{r}
+pdf(file.path(outDir, "fargo_ordination.pdf"))
+
+po12 = plot_ordination(ps.prop, ord, color="TIMEPOINT") + 
+    scale_colour_manual(values = myColorPalette)
+addMarginBoxplots(po12)
+
+po34 = plot_ordination(ps.prop, ord, color="TIMEPOINT", axes = c(3,4)) + 
+    scale_colour_manual(values = myColorPalette) 
+addMarginBoxplots(po34)
+
+po56 = plot_ordination(ps.prop, ord, color="TIMEPOINT", axes = c(5,6)) + 
+    scale_colour_manual(values = myColorPalette) 
+addMarginBoxplots(po56)
+
+dev.off()
+
+addMarginBoxplots(po12)
+```
 
 
 
