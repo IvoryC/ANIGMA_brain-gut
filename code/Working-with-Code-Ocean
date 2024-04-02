@@ -1,0 +1,54 @@
+Working with Code Ocean and GitHub
+
+This is not an authoritative document. These are notes about about what I have done to maintain this repo through both GitHub.com and code ocean, and how I think you can work with this repository yourself.
+
+Easy way 1:
+If the repository has a public code ocean capsule, use that.  You can make your own copy to modify.
+
+Easy way 2:
+If this repository is public:
+Go to code ocean.
+Create new capsule.
+Create new capsule from public git.
+
+Hard way:
+If this repository is private:
+Go to code ocean.
+Create new capsule > new capsule.
+Choose: Capsule > clone via git > copy url to clipboard.
+In your local copy of your repository, 
+  run: git remote add codeOcean <url>
+
+If your main branch name (probably "main") does not match the code ocean repo name (probably "master"), create a new branch in your local repo with the matching name. For example:
+  run: git checkout -b master
+
+In the code ocean IDE, see any unsaved changed (indicated by yellow icons in the file menu).
+In the code ocean IDE, make a commit, so there are no uncommitted changes.
+
+In your local repo, on your "master" branch, rebase onto the existing code ocean commits:
+  run: git checkout master
+  run: git fetch codeOcean
+  run: git rebase codeOcean/master
+
+Now you can push to code ocean and it will be a fast forward change.
+  run: git push codeOcean
+
+Merging the two repos (this is has been a pain point):
+Very helpful post: https://stackoverflow.com/questions/1425892/how-do-you-merge-two-git-repositories
+
+cd path/to/project-b
+git remote add project-a /path/to/project-a
+git fetch project-a --tags
+git merge --allow-unrelated-histories project-a/master # or whichever branch you want to merge
+git remote remove project-a
+
+they credit: https: //stackoverflow.com/questions/2949738/git-merge-different-repositories
+and site git docs: https://git-scm.com/docs/git-merge#git-merge---allow-unrelated-histories
+
+Note: The --allow-unrelated-histories parameter only exists since git >= 2.9. See Git - git merge Documentation / --allow-unrelated-histories
+
+
+Other notes:
+Note: please add to Dockerfile:
+rmarkdown_2.14 
+(this is needed to render markdowns in the r studio workstation.)
