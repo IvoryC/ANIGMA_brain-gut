@@ -277,7 +277,7 @@ displayTaxonName <- function(string, string2){
 }
 
 
-TaxaVsCategoryTest <- function(dataDF, taxa_metrics, variables, doPlot=TRUE, redPval=0.05, testType="anova", fileNameBase=NULL, minGroupSize=2){
+TaxaVsCategoryTest <- function(dataDF, taxa_metrics, variables, doPlot=TRUE, redPval=0.05, testType="anova", fileNameBase=NULL, minGroupSize=2, pairID="PARTICIPANT.ID"){
     # testType - one of "anova" or "kruskal.test"
     # taxa_metrics - a subset of columns representing taxonomic features
     # variables - a different subset of columns
@@ -329,6 +329,31 @@ TaxaVsCategoryTest <- function(dataDF, taxa_metrics, variables, doPlot=TRUE, red
             }
             if (testType == "kruskal.test"){
                 pval = kruskal.test( taxonVals ~ xAxis, na.action=na.exclude )$p.value
+            }
+            if (testType == "paired" | testType == "wilcox"){
+                pairedDF = data.frame(taxonVals = dataDF[, taxon],
+                                      xAxis = dataDF[, variable],
+                                      id = dataDF[, pairID]) %>%
+                    pivot_wider(id_cols=id, names_from = xAxis, values_from = taxonVals) %>%
+                    filter(complete.cases(.)) %>%
+                    data.frame()
+                # if (no0) pairedDF = pairedDF %>% filter(T1 > 0 | T2 > 0)
+                categories = unique(dataDF[,variable])
+                if(nrow(pairedDF) >= minGroupSize){
+                    if (testType == "paired"){
+                        pval = t.test(x=pairedDF[, categories[1]], 
+                                      y=pairedDF[, categories[2]], paired = TRUE )$p.value
+                    }
+                    if (testType == "wilcox"){
+                        pval = wilcox.test(x=pairedDF[, categories[1]], 
+                                           y=pairedDF[, categories[2]], paired = TRUE )$p.value
+                        # pval = coin::wilcox_test(x=pairedDF[, categories[1]], 
+                        #               y=pairedDF[, categories[2]], paired = TRUE )$p.value
+                    }
+                }else{
+                    pval = NA
+                }
+                
             }
 
             pvalTable[taxon, variable] = pval
@@ -416,6 +441,20 @@ acrossTimeTable.ceed = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC" & LO
 acrossTimeTable.fargo = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC" & LOCATION=="CEED"),
                                      taxa_metrics, variables_acrossTime,
                                      fileNameBase=file.path(outDir, "T1T2.FARGO.anova"))
+
+# T1T2 paired
+acrossTimePairedTable = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC"), 
+                                     taxa_metrics, "TIMEPOINT", testType = "paired",
+                                     fileNameBase=file.path(outDir, "T1T2.pairedT.all"))
+acrossTimePairedTable.acute = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC") %>% filter(LOCATION != "ACUTE"), 
+                                     taxa_metrics, "TIMEPOINT", testType = "paired", 
+                                     fileNameBase=file.path(outDir, "T1T2.pairedT.acute"))
+acrossTimePairedTable.ceed = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC") %>% filter(LOCATION != "CEED"), 
+                                     taxa_metrics, "TIMEPOINT", testType = "paired", 
+                                     fileNameBase=file.path(outDir, "T1T2.pairedT.ceed"))
+acrossTimePairedTable.fargo = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC") %>% filter(LOCATION != "FARGO"), 
+                                     taxa_metrics, "TIMEPOINT", testType = "paired", 
+                                     fileNameBase=file.path(outDir, "T1T2.pairedT.fargo"))
 
 # randomized.acrossTimeTable = TaxaVsCategoryTest(scrambled.data, taxa_metrics, variables_acrossTime, doPlot=F)
 
@@ -609,6 +648,12 @@ mergeList = list(
     acrossTimeTable.acute = appendName(acrossTimeTable.acute, ".T1T2.Acute.anova"),
     acrossTimeTable.ceed = appendName(acrossTimeTable.ceed, ".T1T2.Ceed.anova"),
     acrossTimeTable.fargo = appendName(acrossTimeTable.fargo, ".T1T2.Fargo.anova"),
+    
+    acrossTimePairedTable = appendName(acrossTimePairedTable, ".T1T2.pairedT"),
+    acrossTimePairedTable.acute = appendName(acrossTimePairedTable.acute, ".T1T2.pairedT.acute"),
+    acrossTimePairedTable.ceed = appendName(acrossTimePairedTable.ceed, ".T1T2.pairedT.ceed"),
+    acrossTimePairedTable.fargo = appendName(acrossTimePairedTable.fargo, ".T1T2.pairedT.fargo"),
+    
     kwAcrossTime = appendName(kwAcrossTime, ".T1T2.Kruskal"),
     kwAtT1 = appendName(kwAtT1, ".HCT1.Kruskal"),
     kwAtT2 = appendName(kwAtT2, ".HCT2.Kruskal"),
