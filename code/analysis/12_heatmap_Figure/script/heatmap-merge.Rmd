@@ -32,8 +32,8 @@ metrics = c("Shannon Diversity",
 # names of elements are the manual labels.  
 # element values should match the row names of the species-level heat map and p-value table from module 05_Taxonomy_vs_Features.
 species = c("(genus) Ruminococcus" = "g__Ruminococcus (UB*)[3]" ,
-            "(species) Ruminococcus torques_group" = "g__.Ruminococcus._torques_group (UB*)[72]" ,
-            "Ruminococcus gnavus_group" = ".Ruminococcus._gnavus_group.[134]" ,
+            "(species) Ruminococcus torques group" = "g__.Ruminococcus._torques_group (UB*)[72]" ,
+            "(species) Ruminococcus gnavus group" = ".Ruminococcus._gnavus_group.[134]" ,
             "(genus) Oscillibacter" = "g__Oscillibacter (UB*)[152]" ,
             "(genus) Phascolarctobacterium" = "g__Phascolarctobacterium (UB*)[67]" ,
             "(family) Oscillospiraceae" = "g__uncultured (UB*)[34]",
@@ -47,7 +47,7 @@ species = c("(genus) Ruminococcus" = "g__Ruminococcus (UB*)[3]" ,
             "(genus) Holdemania" = "Holdemania.[117]",
             "(family) Lachnospiraceae" = "Lachnospiraceae.[22]" ,
             "(genus) Parabacteroides" = "Parabacteroides.[29]",
-            "Streptococcus_sp" = "Streptococcus_sp.[33]",
+            "(species) Streptococcus" = "Streptococcus_sp.[33]",
             "(genus) Roseburia" = "g__Roseburia (UB*)[19]",
             "(genus) Romboutsia" = "g__Romboutsia (UB*)[90]",
             "(genus) Methanobrevibacter" = "Methanobrevibacter.[69]")
@@ -55,24 +55,29 @@ species = c("(genus) Ruminococcus" = "g__Ruminococcus (UB*)[3]" ,
 
 Desired columns.
 ```{r}
-cols = c('HC T1'="ANOREXIA.HCT1.anova", 
-         'HC T2'="ANOREXIA.HCT2.anova", 
-         'placeholder --> T1 T2'="LOCATION.HC.anova" , #!!!! Need to add this!!!
-         'Subtype T1'="SUBTYPE.AN.HCT1.anova", 
-         'Subtype T2'="SUBTYPE.AN.HCT2.anova", 
-         'Location T1'="LOCATION.HCT1.anova", 
-         'Location T2'="LOCATION.HCT2.anova", 
-         'Weight T1'="Weight_kg.T1.pearson", 
-         'Weight T2'="Weight_kg.T2.pearson", 
-         'BMI T1'="BMI.T1.pearson", 
-         'BMI T2'="BMI.T2.pearson", 
-         'PSS T1'="PSS.T1.pearson", 
-         'PSS T2'="PSS.T2.pearson", 
-         'State Anxiety T1'="STAI_Y1.T1.pearson", 
-         'State Anxiety T2'="STAI_Y1.T2.pearson", 
-         'Trait Anxiety T1'="STAI_Y2.T1.pearson", 
-         'Trait Anxiety T2'="STAI_Y2.T2.pearson")
-warning("Did Ivory mix up Y1 and Y2???")
+cols = c('HC AD'="ANOREXIA.HCT1.anova", 
+         'HC DIS'="ANOREXIA.HCT2.anova", 
+         'DIS vs AD' = "TIMEPOINT.T1T2.pairedT",
+         'DIS vs AD (ACUTE)' = "TIMEPOINT.T1T2.pairedT.acute",
+         'DIS vs AD (CEED)' = "TIMEPOINT.T1T2.pairedT.ceed",
+         'DIS vs AD (Fargo)' = "TIMEPOINT.T1T2.pairedT.fargo",
+         'Subtype AD'="SUBTYPE.AN.HCT1.anova", 
+         'Subtype DIS'="SUBTYPE.AN.HCT2.anova", 
+         'Location AD'="LOCATION.HCT1.anova", 
+         'Location DIS'="LOCATION.HCT2.anova", 
+         'Weight AD'="Weight_kg.T1.pearson", 
+         'Weight DIS'="Weight_kg.T2.pearson", 
+         'BMI AD'="BMI.T1.pearson", 
+         'BMI DIS'="BMI.T2.pearson", 
+         'PSS AD'="PSS.T1.pearson", 
+         'PSS DIS'="PSS.T2.pearson", 
+         'State Anxiety AD'="STAI_Y1.T1.pearson", 
+         'State Anxiety DIS'="STAI_Y1.T2.pearson", 
+         'State Anxiety change'="STAI_Y1.diff.T1.pearson", 
+         'Trait Anxiety AD'="STAI_Y2.T1.pearson", 
+         'Trait Anxiety DIS'="STAI_Y2.T2.pearson",
+         'Trait Anxiety change'="STAI_Y2.diff.T1.pearson"
+         )
 ```
 
 
@@ -82,6 +87,8 @@ diversity = read.delim2("../../08.1_Diversity_vs_Features/output/species/bigList
 row.names(diversity) = diversity$taxon
 diversity = diversity[c("shannon.diversity", "richness"),]
 row.names(diversity) = c("Shannon Diversity", "Richness")
+
+# diversity$TIMEPOINT.T1T2.pairedT = NA
 ```
 
 Get the taxonomy metrics.
@@ -101,7 +108,9 @@ Put them together.
 forHeat = rbind(diversity[ ,cols],
                 taxa[ ,cols])
 names(forHeat) = names(cols)
-forHeat = forHeat %>% mutate_if(is.character, as.numeric)
+forHeat = forHeat %>% 
+    mutate_if(is.character, as.numeric) %>%
+    mutate_if(is.numeric, function(x){x[x > 0.05] = 1; return(x)})
 ```
 
 
@@ -134,7 +143,8 @@ pvalTableToHeatMap = function(pvalTable, taxaLevel, midpointPval=0.05, bluePvalu
                            midpoint = -log10(midpointPval),
                            limit = c(-log10(bluePvalue),-log10(redPvalue)),
                            space = "Lab",
-                           name=paste0("p-value threshold: ", midpointPval, "\n\n-log10(p-value)"),
+                           # name=paste0("p-value threshold: ", midpointPval, "\n\n-log10(p-value)"),
+                           name="-log10(p-value)",
                            na.value = gray(.9)) +
       theme_minimal()+ # minimal theme
       ggtitle(title) +
@@ -148,7 +158,7 @@ pvalTableToHeatMap = function(pvalTable, taxaLevel, midpointPval=0.05, bluePvalu
 ```
 
 ```{r}
-pvalTableToHeatMap(forHeat, 
+pvalTableToHeatMap(forHeat,midpointPval=0.1, bluePvalue=0.1,
                    title="-log10(adjusted p-values)",
                    caption.notes = "species level")
 ```
@@ -162,4 +172,10 @@ show(last_plot())
 dev.off()
 ```
 
+
+TODO
+```{r}
+# See url: https://www.tutorialspoint.com/how-to-write-partial-title-of-x-axis-in-italics-using-ggplot2-of-r
+#.  expression(paste("X comes from ",italic("normal distribution")))
+```
 
