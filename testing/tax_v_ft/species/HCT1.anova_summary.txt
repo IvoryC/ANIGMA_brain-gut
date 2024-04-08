@@ -1,0 +1,5 @@
+variable	testType	nVals	levels	testWithPvalue	rawPvalSig
+TOTAL	anova	NA	NA	NA	NA
+LOCATION	anova	183	CEED,ACUTE,FARGO	172	19
+ANOREXIA	anova	183	T1,HC	172	65
+SUBTYPE.AN	anova	76	BP,ANR,NA	159	35

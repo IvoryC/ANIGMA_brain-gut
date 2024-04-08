@@ -1,0 +1,138 @@
+---
+title: "ANIGMA Metadata Testing"
+output: html_notebook
+---
+
+```{r Setup, include=FALSE}
+options(knitr.purl.inline = TRUE)
+# knitr::opts_chunk$set(echo = TRUE)
+# knitr::opts_chunk$set(results = 'hide')
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+# knitr::opts_chunk$set(fig.width = 4, fig.height = 3)
+options(knitr.graphics.error = FALSE) 
+options(width = 60)
+matrix(runif(100), ncol = 20)
+
+rm(list=ls())
+set.seed(1989)
+```
+
+# Environment
+
+```{r, echo=FALSE}
+library(knitr)
+library(data.table)
+library(tidyr)
+```
+
+```{r, echo=FALSE}
+R <- sessionInfo()
+message(R$R.version$version.string)
+```
+
+## Packages
+```{r, echo=FALSE}
+for (i in 1:length(R$otherPkgs)) {
+  pkg <- R$otherPkgs[[i]]["Package"]
+  v <- R$otherPkgs[[i]]["Version"]
+  message(pkg, ":", v)
+}
+
+```
+
+```{r}
+root <- "~/git/ANIGMA_brain-gut/code/analysis/"
+```
+
+# Input
+
+|- ANIGMA_brain-gut/    
+|- - code/    
+|- - - analysis/   
+|- - - - input/   
+|- - - - - meta/   
+|- - - - - - ANIGMA-metadata.txt
+
+
+```{r}
+inPath <- paste0(root, "input/meta/ANIGMA-metadata.txt")
+input <- read.delim(inPath, sep="\t",header = TRUE)
+
+# Remove HC
+input <- input[input$TIMEPOINT != "HC",]
+```
+
+
+# Output
+
+|- ANIGMA_brain-gut/   
+|- - code/    
+|- - - analysis/   
+|- - - - 01_Participant_Metadata/   
+|- - - - - output/   
+|- - - - - - ANIGMA-metadata_by_AN_participant.txt
+
+```{r}
+outPath <- paste0(root, "01_Participant_Metadata/output/ANIGMA-metadata_by_AN_participant.txt")
+original <- read.delim(outPath, sep="\t",header = TRUE)
+```
+
+# Testing
+```{r}
+main.df <- input[, c("PARTICIPANT.ID", "LOCATION", "AGE", "DAYS_TREAT", "DUR_ILLNESS_YRS", "SUBTYPE")]
+main.df <- main.df[!duplicated(main.df[, 1:ncol(main.df)]), ]
+```
+
+```{r}
+dataColNames <- c("STAI_Y1", "STAI_Y2", "STAI_TOTAL", "PSS", "BMI", "Weight_kg")
+
+for (dataColName in dataColNames) {
+  df <- input[, c("PARTICIPANT.ID", "TIMEPOINT", dataColName)]
+  df <- spread(df, TIMEPOINT, dataColName)
+  df$diff <- df$T2 - df$T1
+  colnames(df)[2:ncol(df)] <- paste0(dataColName, ".", colnames(df)[2:ncol(df)])
+  main.df <- merge(main.df, df, by = "PARTICIPANT.ID")
+}
+
+main.df$BMI.gain.per.day <- main.df$BMI.diff / main.df$DAYS_TREAT
+main.df$T1.severity <- 18.5 - main.df$BMI.T1
+```
+
+# Comparison
+
+```{r, results = 'markup', include=TRUE}
+ordered_main.df <- main.df[match(original$PARTICIPANT.ID, main.df$PARTICIPANT.ID), ]
+outputPath <- paste0(dirname(dirname(root)), "/testing/Ali_metadata_reproduction.tsv")
+write.table(ordered_main.df, outputPath, sep="\t",quote = TRUE, row.names = FALSE)
+
+for (colname in colnames(ordered_main.df)) {
+  
+  if (colname %like% "diff" | colname %like% "per.day" | colname %like% "severity") {
+    compare <- vector()
+    for (i in 1:nrow(ordered_main.df)) {
+      compare <- c(compare, all.equal(original[i,colname], ordered_main.df[i,colname]))
+    }
+  } else {
+    compare <- original[,colname] == ordered_main.df[,colname]
+  }
+  diff <- length(which(compare == FALSE))
+  message("[", colname, "] inconsistencies: ", diff)
+
+  if (diff > 0) {
+    ID <- original[which(compare == FALSE), "PARTICIPANT.ID"]
+    Ivory <- original[which(compare == FALSE), colname]
+    Ali <- ordered_main.df[which(compare == FALSE), colname]
+    compare.df <- data.frame(ID, Ivory, Ali)
+    print(kable(compare.df, caption = paste0(colname, " inconsistencies")))
+    
+    
+    # print(kable(input[which(input$PARTICIPANT.ID %in% ID), c("PARTICIPANT.ID", "TIMEPOINT", sapply(strsplit(colname, "\\."), "[", 1))], caption = "Original metatada"))
+    cat("\n")
+
+  }
+
+
+}
+```
+

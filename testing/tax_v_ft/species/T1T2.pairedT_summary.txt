@@ -1,0 +1,3 @@
+variable	testType	nVals	levels	testWithPvalue	rawPvalSig
+TOTAL	paired	NA	NA	NA	NA
+TIMEPOINT	paired	149	T1,T2	162	22

@@ -1,0 +1,3 @@
+variable	testType	nVals	levels	testWithPvalue	rawPvalSig
+TOTAL	anova	NA	NA	NA	NA
+LOCATION	anova	102	CEED,ACUTE,FARGO	164	13

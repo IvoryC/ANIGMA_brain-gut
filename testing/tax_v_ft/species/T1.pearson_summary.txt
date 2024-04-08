@@ -1,0 +1,8 @@
+variable	testType	nVals	levels	testWithPvalue	rawPvalSig
+TOTAL	pearson	NA	NA	NA	NA
+Weight_kg	pearson	78	min: 23.1; mean: 39.5550070512821; median: 38.9477515; max: 54.5	159	13
+BMI	pearson	79	min: 9.789775; mean: 14.6196585443038; median: 14.49717; max: 19.4	160	16
+STAI_Y1	pearson	71	min: 23; mean: 53.9718309859155; median: 55; max: 80	160	11
+STAI_Y2	pearson	60	min: 25; mean: 57.25; median: 59; max: 79	158	17
+STAI_TOTAL	pearson	60	min: 45; mean: 110.233333333333; median: 113; max: 158	158	15
+PSS	pearson	70	min: 5; mean: 26.5714285714286; median: 28.5; max: 39	160	17
