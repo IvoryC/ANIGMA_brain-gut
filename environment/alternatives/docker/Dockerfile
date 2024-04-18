@@ -10,5 +10,6 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 RUN Rscript -e 'remotes::install_version("ggrepel", "0.9.3")' \
     && Rscript -e 'remotes::install_version("markdown", "1.9")' \
-    && Rscript -e 'remotes::install_version("vegan", "2.6-4")'
+    && Rscript -e 'remotes::install_version("vegan", "2.6-4")' \
+    && Rscript -e 'source("http://bioconductor.org/biocLite.R"); biocLite("phyloseq")'
 

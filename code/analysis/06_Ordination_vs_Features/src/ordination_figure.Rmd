@@ -21,6 +21,7 @@ library(ggplot2); tellme("ggplot2")
 library(ggrepel); tellme("ggrepel")
 library(cowplot); tellme("cowplot")
 library(ggsignif); tellme("ggsignif")
+library(phyloseq); tellme("phyloseq")
 
 set.seed(2222)
 ```
@@ -199,8 +200,6 @@ table(m$TIMEPOINT == m$Timepoint)
 ## Phyloseq
 
 ```{r}
-library(phyloseq)
-
 ps <- phyloseq(otu_table(counts, taxa_are_rows=FALSE), 
                  sample_data(meta))
 
