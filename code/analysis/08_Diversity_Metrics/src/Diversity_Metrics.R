@@ -4,7 +4,7 @@
 #' date: "2023-09-15"
 #' ---
 #' 
-## ----setup, include=FALSE-------------------------------------------------------------------------------------------------
+## ----setup, include=FALSE-------------------------------------------------------------------------------
 # I prefer to edit the Rmd file and then use purl to convert into a R script.
 # knitr::purl(input=dir(pattern="Diversity_Metrics.Rmd"), documentation = 2L)
 knitr::opts_chunk$set(echo = TRUE)
@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 #' 
 #' ### libraries
 #' 
-## -------------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------
 suppressPackageStartupMessages({
   library(vegan)
   library(ggplot2)
@@ -24,7 +24,7 @@ suppressPackageStartupMessages({
 
 #' 
 #' A named vector of color vectors.  Most of these match the previous paper. 
-## ----fig.height=4, fig.width=2, echo=FALSE, include=FALSE-----------------------------------------------------------------
+## ----fig.height=4, fig.width=2, echo=FALSE, include=FALSE-----------------------------------------------
 themeFile = "../../input/themes.R"
 if (file.exists(themeFile)){
     source(themeFile)
@@ -70,13 +70,13 @@ theme_set(theme_classic())
 
 #' 
 #' Source the plot functions that go with this module.
-## -------------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------
 source("../resources/PlotDiversityRichness.R")
 
 #' 
 #' 
 #' Pick a taxonomic level. Take an argument if one is given.
-## -------------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------
 args = commandArgs(trailingOnly=TRUE)
 if (length(args) > 0){
     taxaLevel = args[1]
@@ -86,14 +86,14 @@ if (length(args) > 0){
 
 #' 
 #' Direct output
-## -------------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------
 outDir = file.path("..", "output", taxaLevel)
 suppressWarnings( dir.create(outDir, recursive = T) )
 
 #' 
 #' ### Read counts data
 #' 
-## -------------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------
 input=c(
     domain = "../../input/counts-tables/filtered-counts_level-1_domain.csv",
     phylum = "../../input/counts-tables/filtered-counts_level-2_phylum.csv",
@@ -109,18 +109,18 @@ countsFile = input[taxaLevel]
 #' 
 #' We are looking at the ``r taxaLevel`` level, so we will read file ``r countsFile``.
 #' 
-## -------------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------
 countsAndMetaALL = read.csv(countsFile)
 dim(countsAndMetaALL)
 
 #' 
 #' Make a table with all the metadata that came with the artifact.
-## -------------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------
 qzaMeta = countsAndMetaALL %>% select(id.orig, StudyID, Timepoint)
 
 #' 
 #' Split the meta data and counts
-## -------------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------
 metaCols = c("id.orig", "BarcodeNumber", "BarcodeSequenceFull", "BarcodeSequence", "LinkerPrimerSequence", "StudyID", "Timepoint", "Person")
 counts = countsAndMetaALL %>% select(-all_of(metaCols))
 row.names(counts) = countsAndMetaALL$id.orig
@@ -130,7 +130,7 @@ key = countsAndMetaALL %>% select(id.orig, StudyID, Timepoint)
 #' ### Read meta data.
 #' 
 #' Read the original metadata file.
-## -------------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------
 meta = read.delim("../../input/meta/ANIGMA-metadata.txt") %>%
   select(PARTICIPANT.ID, LOCATION, TIMEPOINT, AGE, SUBTYPE, BMI, 
          STAI_Y1, STAI_Y2, STAI_TOTAL, PSS, DAYS_TREAT, Weight_kg, DNA.ID, DUR_ILLNESS_YRS) %>%
@@ -140,20 +140,20 @@ dim(meta)
 
 #' 
 #' Check that the meta data that came with the qiime artifact matches up to the main project meta data.
-## -------------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------
 m = merge(meta, key, by.x="DNA.ID", by.y="id.orig")
 table(m$PARTICIPANT.ID == m$StudyID)
 table(m$TIMEPOINT == m$Timepoint)
 
 #' 
 #' The metadata from the qiime artifact and the metadata for the project match up. There is one that has an error in the qiime artifact metadata. That's fine. We'll use the project metadata moving forward.
-## -------------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------
 m[which(m$TIMEPOINT != m$Timepoint), c("PARTICIPANT.ID", "TIMEPOINT", "BMI", "Timepoint")]
 
 #' ## Merge
 #' 
 #' Merge the meta data with the counts data.
-## -------------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------
 m = merge(meta, key, by.x="DNA.ID", by.y="id.orig")
 table(m$PARTICIPANT.ID == m$StudyID)
 table(m$TIMEPOINT == m$Timepoint)
@@ -164,12 +164,12 @@ table(m$TIMEPOINT == m$Timepoint)
 #' ## Diversity 
 #' 
 #' Diversity on raw counts.
-## -------------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------
 div.alpha = vegan::diversity(counts, index="shannon")
 meta$alpha.div.raw = div.alpha[row.names(meta)]
 
 #' 
-## ----plotDiv--------------------------------------------------------------------------------------------------------------
+## ----plotDiv--------------------------------------------------------------------------------------------
 # source("../resources/PlotDiversityRichness.R")
 # set defaults for this document
 plotDiv = function(df, column, sig=0.05, saveToDir=outDir, tLevel=taxaLevel){
@@ -188,7 +188,7 @@ plotDiv(meta, column="alpha.div.raw", sig=0.05)
 #' To test this, in each comparison, use all controls.
 #' 
 #' Save a pdf with these figures with matched next to each other:
-## -------------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------
 pdf(file=file.path(outDir, "diversity-by-site_joined-controls.pdf"))
 plotDiv(meta %>% filter(LOCATION=="ACUTE"), column="alpha.div.raw", saveToDir=NA) + 
     ggtitle("ACUTE")
@@ -211,11 +211,13 @@ dev.off()
 #' ### Diversity on Rarefied counts
 #' 
 #' Diversity on rarified data.
-## -------------------------------------------------------------------------------------------------------------------------
-counts_rarified = vegan::rarefy(counts, sample=rep(min(rowSums(counts)), nrow(counts)), MARGIN = 1)
+## -------------------------------------------------------------------------------------------------------
+set.seed(95)
 
-counts_rarified = vegan::rrarefy(counts, sample=rep(min(rowSums(counts)), nrow(counts)))
+rareTo = min(rowSums(counts))
+message("Rarefying each sample to depth: ", rareTo)
 
+counts_rarified = vegan::rrarefy(counts, sample=rep(rareTo, nrow(counts)))
 
 div.alpha.rare = vegan::diversity(counts_rarified, index="shannon")
 meta$alpha.div.rarified = div.alpha.rare[row.names(meta)]
@@ -225,45 +227,45 @@ plotDiv(meta, column="alpha.div.rarified")
 #' 
 #' ## Richness
 #' 
-#' richness on raw counts:
-## -------------------------------------------------------------------------------------------------------------------------
+#' richness on rarefied counts:
+## -------------------------------------------------------------------------------------------------------
 countRichnessSimple <- function(sampleCounts){
   return(suppressWarnings(sum(sampleCounts > 0)))
 }
-rich.raw = apply(counts, countRichnessSimple, MARGIN=1)
-meta$richness.raw = rich.raw[row.names(meta)]
+rich.rarefied = apply(counts_rarified, countRichnessSimple, MARGIN=1)
+meta$richness.rarefied = rich.rarefied[row.names(meta)]
 
 #' 
-## ----plotRich-------------------------------------------------------------------------------------------------------------
+## ----plotRich-------------------------------------------------------------------------------------------
 # source("../resources/PlotDiversityRichness.R")
 # set defaults for this document
 plotRich = function(df, column, sig=0.05, saveToDir=outDir, tLevel=taxaLevel){
-    plotRichness(df, column, sig=sig, saveToDir=saveToDir, tLevel=tLevel)
+    plotRichness(df, column, sig=sig, saveToDir=saveToDir, tLevel=tLevel, rareTo=rareTo)
 }
 
-plotRich(meta, column="richness.raw")
+plotRich(meta, column="richness.rarefied")
 
 #' 
 #' 
 #' ### Split Richness by site
 #' 
 #' Save a pdf of these figures with matched site next to each other.
-## -------------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------
 pdf(file=file.path(outDir, "richness-by-site_joined-controls.pdf"))
 
-plotRich(meta %>% filter(LOCATION=="ACUTE"), column="richness.raw", saveToDir=NA) + 
+plotRich(meta %>% filter(LOCATION=="ACUTE"), column="richness.rarefied", saveToDir=NA) + 
     ggtitle("ACUTE")
-plotRich(meta %>% filter(LOCATION=="ACUTE" | TIMEPOINT=="HC"), column="richness.raw", saveToDir=NA) + 
+plotRich(meta %>% filter(LOCATION=="ACUTE" | TIMEPOINT=="HC"), column="richness.rarefied", saveToDir=NA) + 
     ggtitle("ACUTE - with all controls")
 
-plotRich(meta %>% filter(LOCATION=="CEED"), column="richness.raw", saveToDir=NA) + 
+plotRich(meta %>% filter(LOCATION=="CEED"), column="richness.rarefied", saveToDir=NA) + 
     ggtitle("CEED")
-plotRich(meta %>% filter(LOCATION=="CEED" | TIMEPOINT=="HC"), column="richness.raw", saveToDir=NA) + 
+plotRich(meta %>% filter(LOCATION=="CEED" | TIMEPOINT=="HC"), column="richness.rarefied", saveToDir=NA) + 
     ggtitle("CEED - with all controls")
 
-plotRich(meta %>% filter(LOCATION=="FARGO"), column="richness.raw", saveToDir=NA) + 
+plotRich(meta %>% filter(LOCATION=="FARGO"), column="richness.rarefied", saveToDir=NA) + 
     ggtitle("FARGO")
-plotRich(meta %>% filter(LOCATION=="FARGO" | TIMEPOINT=="HC"), column="richness.raw", saveToDir=NA) + 
+plotRich(meta %>% filter(LOCATION=="FARGO" | TIMEPOINT=="HC"), column="richness.rarefied", saveToDir=NA) + 
     ggtitle("FARGO - with all controls")
 
 dev.off()
@@ -271,17 +273,17 @@ dev.off()
 #' 
 #' # Save Results
 #' 
-## -------------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------
 dataToSave = data.frame(DNA.ID = meta$DNA.ID,
                         shannon.diversity = meta$alpha.div.raw,
-                        richness = meta$richness.raw)
+                        richness = meta$richness.rarefied)
 
 filename = file.path(outDir, paste0("diversity-and-richness_", taxaLevel, ".txt"))
 write.table(x=dataToSave, file=filename, sep="\t", quote=F, row.names = F)
 message("Saved file to: ", filename)
 
 #' 
-## -------------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------
 sessionInfo()
 sizeByP
 plotRichness

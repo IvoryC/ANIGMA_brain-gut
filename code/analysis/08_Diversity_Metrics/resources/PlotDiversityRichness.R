@@ -89,11 +89,11 @@ plotDiversity = function(df, column, sig=0.05, saveToDir=NA, tLevel=NA){
 
 
 #### plot richness ####
-plotRichness = function(df, column, sig=0.05, saveToDir=NA, tLevel=NA){
+plotRichness = function(df, column, sig=0.05, saveToDir=NA, tLevel=NA, rareTo=NA){
     df$richness  = df[,column]
     p = ggplot(data=df, aes(x=TIMEPOINT, y=richness, fill=TIMEPOINT)) +
         # scale_y_continuous(breaks=seq(0, ncol(counts), 5)) +
-        geom_hline(yintercept=c(0, ncol(counts)), col="white", size=2) +
+        geom_hline(yintercept=0, col="white", size=2) +
         geom_boxplot(outlier.alpha = 0) +
         geom_violin(fill=NA) +
         geom_jitter(height = 0, width = .1) +
@@ -137,10 +137,13 @@ plotRichness = function(df, column, sig=0.05, saveToDir=NA, tLevel=NA){
                      label=signif(c(HCvT1p, HCvT2p, T2vT1p), 
                                   digits=3), hjust = "inward")
         
-        p = p +
-            labs(caption=paste0("Horizontal bars indicated if t-test was significant.
+        caption=paste0("Horizontal bars indicated if t-test was significant.
              Bars are black if p-value is less than ", sig, ", otherwise gray. 
-             Line thickness is proportional to the neg. log p."))
+             Line thickness is proportional to the neg. log p.")
+        if (!is.na(rareTo)) caption = paste0(caption, "
+                                             Richness calculated after rarefing to depth: ", rareTo)
+        p = p +
+            labs(caption=caption)
     }
     
     if (!is.na(saveToDir)){

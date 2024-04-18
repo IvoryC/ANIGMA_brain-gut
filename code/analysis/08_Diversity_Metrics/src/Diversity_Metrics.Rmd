@@ -212,10 +212,12 @@ dev.off()
 
 Diversity on rarified data.
 ```{r}
-counts_rarified = vegan::rarefy(counts, sample=rep(min(rowSums(counts)), nrow(counts)), MARGIN = 1)
+set.seed(95)
 
-counts_rarified = vegan::rrarefy(counts, sample=rep(min(rowSums(counts)), nrow(counts)))
+rareTo = min(rowSums(counts))
+message("Rarefying each sample to depth: ", rareTo)
 
+counts_rarified = vegan::rrarefy(counts, sample=rep(rareTo, nrow(counts)))
 
 div.alpha.rare = vegan::diversity(counts_rarified, index="shannon")
 meta$alpha.div.rarified = div.alpha.rare[row.names(meta)]
@@ -225,23 +227,23 @@ plotDiv(meta, column="alpha.div.rarified")
 
 ## Richness
 
-richness on raw counts:
+richness on rarefied counts:
 ```{r}
 countRichnessSimple <- function(sampleCounts){
   return(suppressWarnings(sum(sampleCounts > 0)))
 }
-rich.raw = apply(counts, countRichnessSimple, MARGIN=1)
-meta$richness.raw = rich.raw[row.names(meta)]
+rich.rarefied = apply(counts_rarified, countRichnessSimple, MARGIN=1)
+meta$richness.rarefied = rich.rarefied[row.names(meta)]
 ```
 
 ```{r plotRich}
 # source("../resources/PlotDiversityRichness.R")
 # set defaults for this document
 plotRich = function(df, column, sig=0.05, saveToDir=outDir, tLevel=taxaLevel){
-    plotRichness(df, column, sig=sig, saveToDir=saveToDir, tLevel=tLevel)
+    plotRichness(df, column, sig=sig, saveToDir=saveToDir, tLevel=tLevel, rareTo=rareTo)
 }
 
-plotRich(meta, column="richness.raw")
+plotRich(meta, column="richness.rarefied")
 ```
 
 
@@ -251,19 +253,19 @@ Save a pdf of these figures with matched site next to each other.
 ```{r}
 pdf(file=file.path(outDir, "richness-by-site_joined-controls.pdf"))
 
-plotRich(meta %>% filter(LOCATION=="ACUTE"), column="richness.raw", saveToDir=NA) + 
+plotRich(meta %>% filter(LOCATION=="ACUTE"), column="richness.rarefied", saveToDir=NA) + 
     ggtitle("ACUTE")
-plotRich(meta %>% filter(LOCATION=="ACUTE" | TIMEPOINT=="HC"), column="richness.raw", saveToDir=NA) + 
+plotRich(meta %>% filter(LOCATION=="ACUTE" | TIMEPOINT=="HC"), column="richness.rarefied", saveToDir=NA) + 
     ggtitle("ACUTE - with all controls")
 
-plotRich(meta %>% filter(LOCATION=="CEED"), column="richness.raw", saveToDir=NA) + 
+plotRich(meta %>% filter(LOCATION=="CEED"), column="richness.rarefied", saveToDir=NA) + 
     ggtitle("CEED")
-plotRich(meta %>% filter(LOCATION=="CEED" | TIMEPOINT=="HC"), column="richness.raw", saveToDir=NA) + 
+plotRich(meta %>% filter(LOCATION=="CEED" | TIMEPOINT=="HC"), column="richness.rarefied", saveToDir=NA) + 
     ggtitle("CEED - with all controls")
 
-plotRich(meta %>% filter(LOCATION=="FARGO"), column="richness.raw", saveToDir=NA) + 
+plotRich(meta %>% filter(LOCATION=="FARGO"), column="richness.rarefied", saveToDir=NA) + 
     ggtitle("FARGO")
-plotRich(meta %>% filter(LOCATION=="FARGO" | TIMEPOINT=="HC"), column="richness.raw", saveToDir=NA) + 
+plotRich(meta %>% filter(LOCATION=="FARGO" | TIMEPOINT=="HC"), column="richness.rarefied", saveToDir=NA) + 
     ggtitle("FARGO - with all controls")
 
 dev.off()
@@ -274,7 +276,7 @@ dev.off()
 ```{r}
 dataToSave = data.frame(DNA.ID = meta$DNA.ID,
                         shannon.diversity = meta$alpha.div.raw,
-                        richness = meta$richness.raw)
+                        richness = meta$richness.rarefied)
 
 filename = file.path(outDir, paste0("diversity-and-richness_", taxaLevel, ".txt"))
 write.table(x=dataToSave, file=filename, sep="\t", quote=F, row.names = F)
