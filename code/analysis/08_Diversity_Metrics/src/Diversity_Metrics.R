@@ -121,8 +121,7 @@ qzaMeta = countsAndMetaALL %>% select(id.orig, StudyID, Timepoint)
 #' 
 #' Split the meta data and counts
 ## -------------------------------------------------------------------------------------------------------
-metaCols = c("id.orig", "BarcodeNumber", "BarcodeSequenceFull", "BarcodeSequence", "LinkerPrimerSequence", "StudyID", "Timepoint", "Person")
-counts = countsAndMetaALL %>% select(-all_of(metaCols))
+counts = countsAndMetaALL %>% select(starts_with("d__"))
 row.names(counts) = countsAndMetaALL$id.orig
 key = countsAndMetaALL %>% select(id.orig, StudyID, Timepoint)
 
