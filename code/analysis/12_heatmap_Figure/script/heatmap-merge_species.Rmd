@@ -36,7 +36,7 @@ species = c("(genus) Ruminococcus" = "g__Ruminococcus (UB*)[3]" ,
             "(species) Ruminococcus gnavus group" = ".Ruminococcus._gnavus_group.[134]" ,
             "(genus) Oscillibacter" = "g__Oscillibacter (UB*)[152]" ,
             "(genus) Phascolarctobacterium" = "g__Phascolarctobacterium (UB*)[67]" ,
-            "(family) Oscillospiraceae" = "g__uncultured (UB*)[34]",
+            "(genus) Uncultured genus in the Oscillospiraceae family" = "g__uncultured (UB*)[34]",
             "(genus) Bifidobacterium" = "Bifidobacterium.[2]",
             "(genus) Cloacibacillus" = "Cloacibacillus.[173]",
             "(genus) Clostridium sensu stricto" = "Clostridium_sensu_stricto_2.[66]" ,
@@ -51,6 +51,10 @@ species = c("(genus) Ruminococcus" = "g__Ruminococcus (UB*)[3]" ,
             "(genus) Roseburia" = "g__Roseburia (UB*)[19]",
             "(genus) Romboutsia" = "g__Romboutsia (UB*)[90]",
             "(genus) Methanobrevibacter" = "Methanobrevibacter.[69]")
+
+write.table(cbind(shown=names(species), original=species), 
+            file=file.path(outDir, "selected_taxa.txt"), 
+            sep="\t", row.names=F)
 ```
 
 Desired columns.
@@ -78,6 +82,10 @@ cols = c('HC AD'="ANOREXIA.HCT1.anova",
          'Trait Anxiety DIS'="STAI_Y2.T2.pearson",
          'Trait Anxiety change'="STAI_Y2.diff.T1.pearson"
          )
+
+write.table(cbind(shown=names(cols), original=cols), 
+            file=file.path(outDir, "selected_tests.txt"), 
+            sep="\t", row.names=F)
 ```
 
 
@@ -111,6 +119,10 @@ names(forHeat) = names(cols)
 forHeat = forHeat %>% 
     mutate_if(is.character, as.numeric) %>%
     mutate_if(is.numeric, function(x){x[x > 0.05] = 1; return(x)})
+
+write.table(cbind(labels=names(forHeat), forHeat), 
+            file=file.path(outDir, "heatmap_values.txt"), 
+            sep="\t", row.names=F)
 ```
 
 
