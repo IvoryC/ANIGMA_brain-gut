@@ -1,29 +1,29 @@
----
-title: "Ordination"
-output:
-  html_document:
-    code_folding: hide
-    toc: true
-    toc_depth: 4
----
-
-```{r include=FALSE}
+#' ---
+#' title: "Ordination"
+#' output:
+#'   html_document:
+#'     code_folding: hide
+#'     toc: true
+#'     toc_depth: 4
+#' ---
+#' 
+## ----include=FALSE-------------------------------------------------------------------------------------
 # I prefer to edit the Rmd file and then use purl to convert into a R script.
 # knitr::purl(input=dir(pattern="Rmd"), documentation = 2L)
 knitr::opts_chunk$set(echo = TRUE)
-```
 
-
-```{r setup, include=FALSE}
+#' 
+#' 
+## ----setup, include=FALSE------------------------------------------------------------------------------
 knitr::opts_chunk$set(echo = TRUE)
-```
 
-
-# Setup
-
-### libraries
-
-```{r results = "hold"}
+#' 
+#' 
+#' # Setup
+#' 
+#' ### libraries
+#' 
+## ----results = "hold"----------------------------------------------------------------------------------
 tellme <- function(name){print(paste0("Package ", name, " version: ", packageVersion(name)))}
 
 library(tidyr); tellme("tidyr")
@@ -35,11 +35,11 @@ library(ggsignif); tellme("ggsignif")
 library(phyloseq); tellme("phyloseq")
 
 set.seed(2222)
-```
-### Colors
 
-A named vector of color vectors.  Most of these match the previous paper. 
-```{r, fig.height=4, fig.width=2, echo=FALSE, include=FALSE}
+#' ### Colors
+#' 
+#' A named vector of color vectors.  Most of these match the previous paper. 
+## ----fig.height=4, fig.width=2, echo=FALSE, include=FALSE----------------------------------------------
 themeFile = "../../input/themes.R"
 if (file.exists(themeFile)){
     source(themeFile)
@@ -82,32 +82,32 @@ if (file.exists(themeFile)){
 
 # Use the theme_classic() ggplot theme unless otherwise indicated.
 theme_set(theme_classic())
-```
 
-Pick a taxonomic level. Take an argument if one is given.
-```{r}
+#' 
+#' Pick a taxonomic level. Take an argument if one is given.
+## ------------------------------------------------------------------------------------------------------
 args = commandArgs(trailingOnly=TRUE)
 if (length(args) > 0){
     taxaLevel = args[1]
 }else{
     taxaLevel = "species"
 }
-```
 
-
-Direct output
-```{r}
+#' 
+#' 
+#' Direct output
+## ------------------------------------------------------------------------------------------------------
 outDir = file.path("..", "output", taxaLevel)
 suppressWarnings( dir.create(outDir, recursive = T) )
-```
 
-Output will be saved to: ``r outDir``
-
-# Main
-
-## Read counts data
-
-```{r}
+#' 
+#' Output will be saved to: ``r outDir``
+#' 
+#' # Main
+#' 
+#' ## Read counts data
+#' 
+## ------------------------------------------------------------------------------------------------------
 input=c(
     domain = "../../input/counts-tables/filtered-counts_level-1_domain.csv",
     phylum = "../../input/counts-tables/filtered-counts_level-2_phylum.csv",
@@ -119,17 +119,17 @@ input=c(
 
 # taxaLevel = "class"
 countsFile = input[taxaLevel]
-```
 
-We are looking at the ``r taxaLevel`` level, so we will read file ``r countsFile``.
-
-```{r}
+#' 
+#' We are looking at the ``r taxaLevel`` level, so we will read file ``r countsFile``.
+#' 
+## ------------------------------------------------------------------------------------------------------
 countsAndMeta = read.csv(countsFile)
 dim(countsAndMeta)
-```
 
-Filter out unrelated samples
-```{r}
+#' 
+#' Filter out unrelated samples
+## ------------------------------------------------------------------------------------------------------
 # already done, but double check
 if (any(countsAndMeta$Person != "Kylie")){
     message("Filtering out unrelated samples.")
@@ -137,40 +137,40 @@ if (any(countsAndMeta$Person != "Kylie")){
 }else{
     message("No unrelated samples.")
 }
-```
 
-```{r echo=FALSE, include=FALSE}
+#' 
+## ----echo=FALSE, include=FALSE-------------------------------------------------------------------------
 # Make a table with all the metadata that came with the artifact.
 # No real need to save this.
 
 # qzaMeta = countsAndMetaALL %>% select(id.orig, StudyID, Timepoint, Person)
 # write.table(qzaMeta, file=file.path(outDir, paste0(taxaLevel, "_artifact_metatdata.txt")), 
 #             quote=F, sep="\t", row.names = F)
-```
 
-This data includes some metadata.
-```{r}
+#' 
+#' This data includes some metadata.
+## ------------------------------------------------------------------------------------------------------
 metaCols = c("id.orig", "BarcodeNumber", "BarcodeSequenceFull", "BarcodeSequence", "LinkerPrimerSequence", "StudyID", "Timepoint", "Person", "index")
-```
 
-All the other columns should look like taxa names. Look at the first few characters. How often does that prefix appear?
-```{r}
+#' 
+#' All the other columns should look like taxa names. Look at the first few characters. How often does that prefix appear?
+## ------------------------------------------------------------------------------------------------------
 dataCols = setdiff(colnames(countsAndMeta), metaCols)
 table(substr(dataCols, 0, 11))
-```
 
-
-Split the meta data and counts
-```{r}
+#' 
+#' 
+#' Split the meta data and counts
+## ------------------------------------------------------------------------------------------------------
 counts = countsAndMeta %>% select(-all_of(metaCols))
 row.names(counts) = countsAndMeta$id.orig
 key = countsAndMeta %>% select(id.orig, StudyID, Timepoint)
-```
 
-### normalize counts
-
-Normalize counts.
-```{r}
+#' 
+#' ### normalize counts
+#' 
+#' Normalize counts.
+## ------------------------------------------------------------------------------------------------------
 lognorm <- function(table, log10.do = TRUE){
   # table - a table with rows for samples and columns for features
   #         samples names are row names.
@@ -186,48 +186,48 @@ lognorm <- function(table, log10.do = TRUE){
 }
 
 # counts.norm = lognorm(counts)
-```
 
-## Read meta data.
-
-Read the original metadata file.
-```{r}
+#' 
+#' ## Read meta data.
+#' 
+#' Read the original metadata file.
+## ------------------------------------------------------------------------------------------------------
 meta = read.delim("../../input/meta/ANIGMA-metadata.txt") %>%
   select(PARTICIPANT.ID, LOCATION, TIMEPOINT, AGE, SUBTYPE, BMI, 
          STAI_Y1, STAI_Y2, STAI_TOTAL, PSS, DAYS_TREAT, Weight_kg, DNA.ID, DUR_ILLNESS_YRS) %>%
   filter(DNA.ID %in% countsAndMeta$id.orig)
 row.names(meta) = meta$DNA.ID
 dim(meta)
-```
 
-
-Check that the meta data that came with the qiime artifact matches up to the main project meta data.
-```{r}
+#' 
+#' 
+#' Check that the meta data that came with the qiime artifact matches up to the main project meta data.
+## ------------------------------------------------------------------------------------------------------
 m = merge(meta, key, by.x="DNA.ID", by.y="id.orig")
 table(m$PARTICIPANT.ID == m$StudyID)
 table(m$TIMEPOINT == m$Timepoint)
-```
 
-## Phyloseq
-
-```{r}
+#' 
+#' ## Phyloseq
+#' 
+## ------------------------------------------------------------------------------------------------------
 ps <- phyloseq(otu_table(counts, taxa_are_rows=FALSE), 
                  sample_data(meta))
 
 ps.prop <- transform_sample_counts(ps, function(otu) otu/sum(otu))
 
 ord <- ordinate(ps.prop, method="PCoA", distance="bray") 
-```
 
-Extract the PCs.
-```{r}
+#' 
+#' Extract the PCs.
+## ------------------------------------------------------------------------------------------------------
 pc = ord$vectors[,1:6]
 pcm = merge(meta, pc, by.x="DNA.ID", by.y=0)
 write.table(pcm, file=file.path(outDir, paste0("PCoA_", taxaLevel, ".txt")), sep="\t", row.names=F, quote=F)
-```
 
-Write a summary for bar plots.
-```{r}
+#' 
+#' Write a summary for bar plots.
+## ------------------------------------------------------------------------------------------------------
 savePcBarPlots <- function(PC.df, axesCols = paste0("Axis.", 1:6), filename="pc_barplots.txt"){
     outputpath = file.path(outDir, filename)
     pdf(outputpath)
@@ -265,11 +265,11 @@ savePcBarPlots <- function(PC.df, axesCols = paste0("Axis.", 1:6), filename="pc_
     write.table(output, file=gsub("_barplots.pdf", "_means.txt", outputpath), sep="\t", row.names=F, quote=F)
 }
 savePcBarPlots(pcm, filename="all-sites_barplots.pdf")
-```
 
-
-
-```{r}
+#' 
+#' 
+#' 
+## ------------------------------------------------------------------------------------------------------
 po12 = plot_ordination(ps.prop, ord, color="TIMEPOINT") + 
     scale_colour_manual(values = myColorPalette)
 show(po12)
@@ -277,8 +277,8 @@ show(po12)
 po34 = plot_ordination(ps.prop, ord, color="TIMEPOINT", axes = c(3,4)) + 
     scale_colour_manual(values = myColorPalette) 
 show(po34)
-```
-```{r}
+
+## ------------------------------------------------------------------------------------------------------
 # many thanks to this poster for an excellent example:
 # https://stackoverflow.com/questions/70781091/align-another-object-with-scatterplotmarginal-boxplots
 
@@ -317,33 +317,33 @@ addMarginBoxplots <- function(ggScatter){
 
 addMarginBoxplots(po12)
 addMarginBoxplots(po34)
-```
 
-Save to pdf.
-```{r}
+#' 
+#' Save to pdf.
+## ------------------------------------------------------------------------------------------------------
 pdf(file.path(outDir, "all-sites_ordination_fig.pdf"))
 
 addMarginBoxplots(po12)
 addMarginBoxplots(po34)
 
 dev.off()
-```
 
-
-
-# site specific
-
-## Acute
-
-Clear the slate
-```{r}
+#' 
+#' 
+#' 
+#' # site specific
+#' 
+#' ## Acute
+#' 
+#' Clear the slate
+## ------------------------------------------------------------------------------------------------------
 rm(ps, ps.prop, pc, pcm, po12, po34)
 meta_i = meta %>% filter(LOCATION == "ACUTE")
 counts_i = counts[meta_i$DNA.ID,]
-```
 
-Ordination.
-```{r}
+#' 
+#' Ordination.
+## ------------------------------------------------------------------------------------------------------
 ps <- phyloseq(otu_table(counts_i, taxa_are_rows=FALSE), 
                  sample_data(meta_i))
 
@@ -353,15 +353,15 @@ ord <- ordinate(ps.prop, method="PCoA", distance="bray")
 
 pc = ord$vectors[,1:6]
 pcm = merge(meta, pc, by.x="DNA.ID", by.y=0)
-```
 
-Save reference barplots.
-```{r}
+#' 
+#' Save reference barplots.
+## ------------------------------------------------------------------------------------------------------
 savePcBarPlots(pcm, filename="acute_barplots.pdf")
-```
 
-Save ordination plots.
-```{r}
+#' 
+#' Save ordination plots.
+## ------------------------------------------------------------------------------------------------------
 pdf(file.path(outDir, "acute_ordination.pdf"))
 
 po12 = plot_ordination(ps.prop, ord, color="TIMEPOINT") + 
@@ -379,20 +379,20 @@ addMarginBoxplots(po56)
 dev.off()
 
 addMarginBoxplots(po12)
-```
 
-
-## CEED
-
-Clear the slate
-```{r}
+#' 
+#' 
+#' ## CEED
+#' 
+#' Clear the slate
+## ------------------------------------------------------------------------------------------------------
 rm(ps, ps.prop, pc, pcm, po12, po34)
 meta_i = meta %>% filter(LOCATION == "CEED")
 counts_i = counts[meta_i$DNA.ID,]
-```
 
-Ordination.
-```{r}
+#' 
+#' Ordination.
+## ------------------------------------------------------------------------------------------------------
 ps <- phyloseq(otu_table(counts_i, taxa_are_rows=FALSE), 
                  sample_data(meta_i))
 
@@ -402,15 +402,15 @@ ord <- ordinate(ps.prop, method="PCoA", distance="bray")
 
 pc = ord$vectors[,1:6]
 pcm = merge(meta, pc, by.x="DNA.ID", by.y=0)
-```
 
-Save reference barplots.
-```{r}
+#' 
+#' Save reference barplots.
+## ------------------------------------------------------------------------------------------------------
 savePcBarPlots(pcm, filename="ceed_barplots.pdf")
-```
 
-Save ordination plots.
-```{r}
+#' 
+#' Save ordination plots.
+## ------------------------------------------------------------------------------------------------------
 pdf(file.path(outDir, "ceed_ordination.pdf"))
 
 po12 = plot_ordination(ps.prop, ord, color="TIMEPOINT") + 
@@ -428,20 +428,20 @@ addMarginBoxplots(po56)
 dev.off()
 
 addMarginBoxplots(po12)
-```
 
-
-## Fargo
-
-Clear the slate
-```{r}
+#' 
+#' 
+#' ## Fargo
+#' 
+#' Clear the slate
+## ------------------------------------------------------------------------------------------------------
 rm(ps, ps.prop, pc, pcm, po12, po34)
 meta_i = meta %>% filter(LOCATION == "FARGO")
 counts_i = counts[meta_i$DNA.ID,]
-```
 
-Ordination.
-```{r}
+#' 
+#' Ordination.
+## ------------------------------------------------------------------------------------------------------
 ps <- phyloseq(otu_table(counts_i, taxa_are_rows=FALSE), 
                  sample_data(meta_i))
 
@@ -451,15 +451,15 @@ ord <- ordinate(ps.prop, method="PCoA", distance="bray")
 
 pc = ord$vectors[,1:6]
 pcm = merge(meta, pc, by.x="DNA.ID", by.y=0)
-```
 
-Save reference barplots.
-```{r}
+#' 
+#' Save reference barplots.
+## ------------------------------------------------------------------------------------------------------
 savePcBarPlots(pcm, filename="fargo_barplots.pdf")
-```
 
-Save ordination plots.
-```{r}
+#' 
+#' Save ordination plots.
+## ------------------------------------------------------------------------------------------------------
 pdf(file.path(outDir, "fargo_ordination.pdf"))
 
 po12 = plot_ordination(ps.prop, ord, color="TIMEPOINT") + 
@@ -477,11 +477,11 @@ addMarginBoxplots(po56)
 dev.off()
 
 addMarginBoxplots(po12)
-```
 
-
-
-```{r}
+#' 
+#' 
+#' 
+## ------------------------------------------------------------------------------------------------------
 sessionInfo()
-```
 
+#' 

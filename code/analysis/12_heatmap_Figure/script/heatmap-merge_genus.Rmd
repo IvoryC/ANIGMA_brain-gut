@@ -16,8 +16,8 @@ library(ggplot2)
 ```
 
 ```{r}
-outDir = "../output/species"
-dir.create(outDir,recursive = T)
+outDir = "../output/genus"
+dir.create(outDir)
 ```
 
 ## 
@@ -31,28 +31,28 @@ metrics = c("Shannon Diversity",
 
 # names of elements are the manual labels.  
 # element values should match the row names of the species-level heat map and p-value table from module 05_Taxonomy_vs_Features.
-species = c("(genus) Ruminococcus" = "g__Ruminococcus (UB*)[3]" ,
-            "(species) Ruminococcus torques group" = "g__.Ruminococcus._torques_group (UB*)[72]" ,
-            "(species) Ruminococcus gnavus group" = ".Ruminococcus._gnavus_group.[134]" ,
-            "(genus) Oscillibacter" = "g__Oscillibacter (UB*)[152]" ,
-            "(genus) Phascolarctobacterium" = "g__Phascolarctobacterium (UB*)[67]" ,
-            "(genus) Uncultured genus in the Oscillospiraceae family" = "g__uncultured (UB*)[34]",
-            "(genus) Bifidobacterium" = "Bifidobacterium.[2]",
-            "(genus) Cloacibacillus" = "Cloacibacillus.[173]",
-            "(genus) Clostridium sensu stricto" = "Clostridium_sensu_stricto_2.[66]" ,
-            "(genus) Faecalibacterium" = "Faecalibacterium.[14]",
-            "(genus) Akkermansia" = "g__Akkermansia (UB*)[23]",
-            "(genus) Lachnoclostridium" = "g__Lachnoclostridium (UB*)[97]",
-            "(genus) Lachnospira" = "g__Lachnospira (UB*)[46]" ,
-            "(genus) Holdemania" = "Holdemania.[117]",
-            "(family) Lachnospiraceae" = "Lachnospiraceae.[22]" ,
-            "(genus) Parabacteroides" = "Parabacteroides.[29]",
-            "(species) Streptococcus" = "Streptococcus_sp.[33]",
-            "(genus) Roseburia" = "g__Roseburia (UB*)[19]",
-            "(genus) Romboutsia" = "g__Romboutsia (UB*)[90]",
-            "(genus) Methanobrevibacter" = "Methanobrevibacter.[69]")
+shortTaxaList = c("Ruminococcus" = "d__Bacteria.p__Firmicutes.c__Clostridia.o__Oscillospirales.f__Ruminococcaceae.g__Ruminococcus" ,
+            "Ruminococcus torques group" = "d__Bacteria.p__Firmicutes.c__Clostridia.o__Lachnospirales.f__Lachnospiraceae.g__.Ruminococcus._torques_group" ,
+            "Ruminococcus gnavus group" = "d__Bacteria.p__Firmicutes.c__Clostridia.o__Lachnospirales.f__Lachnospiraceae.g__.Ruminococcus._gnavus_group" ,
+            "Oscillibacter" = "d__Bacteria.p__Firmicutes.c__Clostridia.o__Oscillospirales.f__Oscillospiraceae.g__Oscillibacter" ,
+            "Phascolarctobacterium" = "d__Bacteria.p__Firmicutes.c__Negativicutes.o__Acidaminococcales.f__Acidaminococcaceae.g__Phascolarctobacterium" ,
+            "Uncultured genus in the Oscillospiraceae family" = "d__Bacteria.p__Firmicutes.c__Clostridia.o__Oscillospirales.f__Oscillospiraceae.g__uncultured",# "g__uncultured (UB*)[34]",
+            "Bifidobacterium" = "d__Bacteria.p__Actinobacteriota.c__Actinobacteria.o__Bifidobacteriales.f__Bifidobacteriaceae.g__Bifidobacterium",
+            "Cloacibacillus" = "d__Bacteria.p__Synergistota.c__Synergistia.o__Synergistales.f__Synergistaceae.g__Cloacibacillus",
+            "Clostridium sensu stricto" = "d__Bacteria.p__Firmicutes.c__Clostridia.o__Clostridiales.f__Clostridiaceae.g__Clostridium_sensu_stricto_2" ,
+            "Faecalibacterium" = "d__Bacteria.p__Firmicutes.c__Clostridia.o__Oscillospirales.f__Ruminococcaceae.g__Faecalibacterium",
+            "Akkermansia" = "d__Bacteria.p__Verrucomicrobiota.c__Verrucomicrobiae.o__Verrucomicrobiales.f__Akkermansiaceae.g__Akkermansia",
+            "Lachnoclostridium" = "d__Bacteria.p__Firmicutes.c__Clostridia.o__Lachnospirales.f__Lachnospiraceae.g__Lachnoclostridium",
+            "Lachnospira" = "d__Bacteria.p__Firmicutes.c__Clostridia.o__Lachnospirales.f__Lachnospiraceae.g__Lachnospira" ,
+            "Holdemania" = "d__Bacteria.p__Firmicutes.c__Bacilli.o__Erysipelotrichales.f__Erysipelotrichaceae.g__Holdemania",
+            "unspecified genus in the Lachnospiraceae family" = "d__Bacteria.p__Firmicutes.c__Clostridia.o__Lachnospirales.f__Lachnospiraceae.__" ,
+            "Parabacteroides" = "d__Bacteria.p__Bacteroidota.c__Bacteroidia.o__Bacteroidales.f__Tannerellaceae.g__Parabacteroides",
+            "Streptococcus" = "d__Bacteria.p__Firmicutes.c__Bacilli.o__Lactobacillales.f__Streptococcaceae.g__Streptococcus",
+            "Roseburia" = "d__Bacteria.p__Firmicutes.c__Clostridia.o__Lachnospirales.f__Lachnospiraceae.g__Roseburia",
+            "Romboutsia" = "d__Bacteria.p__Firmicutes.c__Clostridia.o__Peptostreptococcales.Tissierellales.f__Peptostreptococcaceae.g__Romboutsia",
+            "Methanobrevibacter" = "d__Archaea.p__Euryarchaeota.c__Methanobacteria.o__Methanobacteriales.f__Methanobacteriaceae.g__Methanobrevibacter")
 
-write.table(cbind(shown=names(species), original=species), 
+write.table(cbind(shown=names(shortTaxaList), original=shortTaxaList), 
             file=file.path(outDir, "selected_taxa.txt"), 
             sep="\t", row.names=F)
 ```
@@ -61,10 +61,10 @@ Desired columns.
 ```{r}
 cols = c('HC AD'="ANOREXIA.HCT1.anova", 
          'HC DIS'="ANOREXIA.HCT2.anova", 
-         'DIS vs AD' = "TIMEPOINT.T1T2.pairedT",
-         'DIS vs AD (ACUTE)' = "TIMEPOINT.T1T2.pairedT.acute",
-         'DIS vs AD (CEED)' = "TIMEPOINT.T1T2.pairedT.ceed",
-         'DIS vs AD (Fargo)' = "TIMEPOINT.T1T2.pairedT.fargo",
+         #'DIS vs AD' = "TIMEPOINT.T1T2.pairedT",
+         #'DIS vs AD (ACUTE)' = "TIMEPOINT.T1T2.pairedT.acute",
+         #'DIS vs AD (CEED)' = "TIMEPOINT.T1T2.pairedT.ceed",
+         #'DIS vs AD (Fargo)' = "TIMEPOINT.T1T2.pairedT.fargo",
          'Subtype AD'="SUBTYPE.AN.HCT1.anova", 
          'Subtype DIS'="SUBTYPE.AN.HCT2.anova", 
          'Location AD'="LOCATION.HCT1.anova", 
@@ -92,7 +92,7 @@ write.table(cbind(shown=names(cols), original=cols),
 Get the Diversity metrics.
 ```{r}
 div.vs.feat.module = dir("../../", pattern="Diversity_vs_Features_AllSites", full.names = T)
-diversity = read.delim2(file.path(div.vs.feat.module, "output/species/bigList_pvalues_fdr-adjusted_species.txt"))
+diversity = read.delim2(file.path(div.vs.feat.module, "output/genus/bigList_pvalues_fdr-adjusted_genus.txt"))
 row.names(diversity) = diversity$taxon
 diversity = diversity[c("shannon.diversity", "richness"),]
 row.names(diversity) = c("Shannon Diversity", "Richness")
@@ -103,14 +103,14 @@ row.names(diversity) = c("Shannon Diversity", "Richness")
 Get the taxonomy metrics.
 ```{r}
 tax.vs.feat.module = dir("../../", pattern="Taxonomy_vs_Features", full.names = T)
-taxa = read.delim2(file.path(tax.vs.feat.module, "output/species/bigList_pvalues_fdr-adjusted_species.txt"))
+taxa = read.delim2(file.path(tax.vs.feat.module, "output/genus/bigList_pvalues_fdr-adjusted_genus.txt"))
 
 # select desired rows
-row.names(taxa) = taxa$taxon
-taxa = taxa[species, ]
+row.names(taxa) = taxa$taxon.originalName
+taxa = taxa[shortTaxaList, ]
 
 #rename rows
-row.names(taxa) = names(species)
+row.names(taxa) = names(shortTaxaList)
 ```
 
 Put them together.
@@ -122,9 +122,9 @@ forHeat = forHeat %>%
     mutate_if(is.character, as.numeric) %>%
     mutate_if(is.numeric, function(x){x[x > 0.05] = 1; return(x)})
 
-write.table(cbind(labels=names(forHeat), forHeat), 
+write.table(cbind(labels=row.names(forHeat), forHeat), 
             file=file.path(outDir, "heatmap_values.txt"), 
-            sep="\t", row.names=F)
+            sep="\t", row.names=F, quote=F)
 ```
 
 
@@ -174,12 +174,12 @@ pvalTableToHeatMap = function(pvalTable, taxaLevel, midpointPval=0.05, bluePvalu
 ```{r}
 pvalTableToHeatMap(forHeat,midpointPval=0.1, bluePvalue=0.1,
                    title="-log10(adjusted p-values)",
-                   caption.notes = "species level")
+                   caption.notes = "genus level")
 ```
 
 Save to pdf.
 ```{r}
-pdf(file.path(outDir, "heatMap_main_fig.pdf"))
+pdf(file.path(outDir, "heatMap_genus_main_fig.pdf"))
 
 show(last_plot())
 

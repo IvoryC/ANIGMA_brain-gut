@@ -418,7 +418,7 @@ We have ``r length(taxa)`` to test.
 Compare the values for each taxon against each categorical feature. Use the 1-way-anova and the Kruskal test.
 
 ```{r TaxaVsCategoryTest}
-TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.05, testType="anova", fileNameBase=NULL, minGroupSize=2, pairID="PARTICIPANT.ID"){
+TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.05, testType="anova", fileNameBase=NULL, minGroupSize=2, pairID="PARTICIPANT.ID", no0=FALSE){
     # testType - one of "anova" or "kruskal.test" or "paired"
     # taxa - a subset of columns representing taxonomic features
     # variables - a different subset of columns
@@ -471,15 +471,30 @@ TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.0
             if (testType == "kruskal.test"){
                 pval = kruskal.test( taxonVals ~ xAxis, na.action=na.exclude )$p.value
             }
-            if (testType == "paired"){
+            if (testType == "paired" | testType == "wilcox"){
                 pairedDF = data.frame(taxonVals = dataDF[, taxon],
                                       xAxis = dataDF[, variable],
                                       id = dataDF[, pairID]) %>%
                     pivot_wider(id_cols=id, names_from = xAxis, values_from = taxonVals) %>%
                     filter(complete.cases(.)) %>%
                     data.frame()
+                if (no0) pairedDF = pairedDF %>% filter(T1 > 0 | T2 > 0)
                 categories = unique(dataDF[,variable])
-                pval = t.test(x=pairedDF[, categories[1]], y=pairedDF[, categories[2]], paired = TRUE )$p.value
+                if(nrow(pairedDF) >= minGroupSize){
+                    if (testType == "paired"){
+                        pval = t.test(x=pairedDF[, categories[1]], 
+                                      y=pairedDF[, categories[2]], paired = TRUE )$p.value
+                    }
+                    if (testType == "wilcox"){
+                        pval = wilcox.test(x=pairedDF[, categories[1]], 
+                                           y=pairedDF[, categories[2]], paired = TRUE )$p.value
+                        # pval = coin::wilcox_test(x=pairedDF[, categories[1]], 
+                        #               y=pairedDF[, categories[2]], paired = TRUE )$p.value
+                    }
+                }else{
+                    pval = NA
+                }
+                
             }
             
             pvalTable[taxon, variable] = pval
@@ -497,8 +512,8 @@ TaxaVsCategoryTest <- function(dataDF, taxa, variables, doPlot=TRUE, redPval=0.0
                     ggtitle( paste0(testType, " p-value: ", signif(pval, 5)) ) +
                     theme(plot.title = element_text(colour = ifelse(pval<=redPval, "red", "black"))) 
                 
-                if (testType == "paired"){
-                    # this case, pairedDF exists!
+                if (testType == "paired" | testType == "wilcox"){
+                    # in this case, pairedDF exists!
                     gplot = gplot +
                         geom_point() +
                         annotate(geom="segment", x="T1",  xend="T2", y=pairedDF$T1, yend=pairedDF$T2)
@@ -569,8 +584,17 @@ acrossTimeTable = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC"),
                                      taxa, variables_acrossTime, doPlot=F, 
                                      fileNameBase=file.path(outDir, "T1T2.anova"))
 acrossTimePairedTable = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC"), 
-                                     taxa, "TIMEPOINT", testType = "paired",
+                                     taxa, "TIMEPOINT", testType = "paired", 
                                      fileNameBase=file.path(outDir, "T1T2.pairedT"))
+acrossTimePairedTable.acute = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC") %>% filter(LOCATION=="ACUTE"), 
+                                     taxa, "TIMEPOINT", testType = "paired", 
+                                     fileNameBase=file.path(outDir, "T1T2.pairedT.acute"))
+acrossTimePairedTable.ceed = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC") %>% filter(LOCATION=="CEED"), 
+                                     taxa, "TIMEPOINT", testType = "paired", 
+                                     fileNameBase=file.path(outDir, "T1T2.pairedT.ceed"))
+acrossTimePairedTable.fargo = TaxaVsCategoryTest(data %>% filter(TIMEPOINT != "HC") %>% filter(LOCATION=="FARGO"), 
+                                     taxa, "TIMEPOINT", testType = "paired", 
+                                     fileNameBase=file.path(outDir, "T1T2.pairedT.fargo"))
 
 # randomized.acrossTimeTable = TaxaVsCategoryTest(scrambled.data, taxa, variables_acrossTime, doPlot=F)
 
@@ -761,7 +785,12 @@ mergeList = list(
     anovaAtT2 = appendName(anovaAtT2, ".HCT2.anova"),
     anovaAtHC = appendName(anovaAtHC, ".HC.anova"),
     acrossTimeTable = appendName(acrossTimeTable, ".T1T2.anova"),
+    #paired
     acrossTimePairedTable = appendName(acrossTimePairedTable, ".T1T2.pairedT"),
+    acrossTimePairedTable.acute = appendName(acrossTimePairedTable.acute, ".T1T2.pairedT.acute"),
+    acrossTimePairedTable.ceed = appendName(acrossTimePairedTable.ceed, ".T1T2.pairedT.ceed"),
+    acrossTimePairedTable.fargo = appendName(acrossTimePairedTable.fargo, ".T1T2.pairedT.fargo"),
+    
     kwAcrossTime = appendName(kwAcrossTime, ".T1T2.Kruskal"),
     kwAtT1 = appendName(kwAtT1, ".HCT1.Kruskal"),
     kwAtT2 = appendName(kwAtT2, ".HCT2.Kruskal"),
